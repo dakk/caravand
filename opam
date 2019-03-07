@@ -1,0 +1,45 @@
+opam-version: "1.2"
+name: "caravand"
+version: "0.2"
+maintainer: "Davide Gessa <gessadavide@gmail.com>"
+authors: [
+  "Davide Gessa <gessadavide@gmail.com>"
+]
+
+homepage: "https://github.com/dakk/caravand"
+bug-reports: "https://github.com/dakk/caravand/issues"
+license: "MIT"
+dev-repo: "https://github.com/dakk/caravand.git"
+build: [
+  ["dune" "build" "-p" name "-j" jobs "@install"]
+]
+build-test: [
+  ["dune" "build" "-p" name "-j" jobs "@runtest" "@doc"]
+]
+build-doc: [
+  ["dune" "build" "-p" name "-j" jobs "@doc"]
+]
+
+depends: [
+  "dune" {build & >= "1.6.3"}
+  "base" {build & >= "v0.11.1"}
+  "stdio" {build & >= "v0.11.0"}
+  "configurator" {build & >= "v0.11.0"}
+  "ppx_bitstring" {build & >= "2.0.2"}
+  
+  "bitstring" {>= "2.1.0"}
+  "bignum" {>= "v0.12.0"}
+  "bitcoinml" {= "0.4.0"}
+  "cryptokit" {>= "1.13"}
+  "ctypes" {>= "0.14.0"}
+  "leveldb" {>= "1.2.0"}
+  "stdint" {>= "0.5.1"}
+
+  "ounit" {test & >= "2.0.8"}
+  "odoc" {test & >= "1.3.0"}
+  "hex" {test & >= "1.3.0"}
+]
+
+depexts: [
+]
+
