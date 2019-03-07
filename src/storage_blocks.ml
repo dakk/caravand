@@ -1,6 +1,7 @@
 open LevelDB;;
 open Bitcoinml;;
 open Stdint;;
+open Utils;;
 open Store;;
 
 type t = Store_raw.t;;

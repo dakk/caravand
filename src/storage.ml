@@ -1,5 +1,5 @@
-open Store;;
 open Utils;;
+open Store;;
 open Bitcoinml;;
 open Stdint;;
 open Block;;

@@ -1,5 +1,5 @@
 (library
   (name utils)
   (public_name caravand.utils)
-  (libraries cryptokit threads yojson))
+  (libraries cryptokit threads yojson leveldb stdint))
 
