@@ -1,5 +1,5 @@
 all:
-	dune build @install 
+	dune build @install  --profile release
 test:
 	dune build @runtest
 clean:
@@ -8,4 +8,4 @@ clean:
 
 .PHONY : pin
 pin: 
-	opam pin add caravand . -n && opam remove caravand && opam install caravand
+	opam pin add caravand . -n --working-dir && opam remove caravand && opam install caravand --working-dir
