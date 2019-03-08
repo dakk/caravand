@@ -130,7 +130,8 @@ let load path config p =
 	bcg.branches <- [];
 		
 	let header_last = Storage.get_header bcg.storage bcg.storage.chainstate.Chainstate.block in
-	let block_last = Storage.get_block bcg.storage bcg.storage.chainstate.Chainstate.block in
+	(*let block_last = Storage.get_block bcg.storage bcg.storage.chainstate.Chainstate.block in*)
+	let block_last = None in
 
 	match (header_last, bcg.storage.chainstate.Chainstate.height, block_last, bcg.storage.chainstate.Chainstate.height) with
 	| (None, hh, b, bh) -> res bcg
@@ -455,5 +456,7 @@ let rec loop bc =
 
 let shutdown bc = 
 	Log.fatal "Blockchain" "Shutdown...";
-	bc.run <- false
+	bc.run <- false;
+	Storage.sync bc.storage;
+	Storage.close bc.storage
 ;;

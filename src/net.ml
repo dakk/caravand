@@ -77,7 +77,10 @@ let received n = Hashtbl.fold (fun k p c -> p.received + c) n.peers 0;;
 
 let shutdown n = 
 	Log.fatal "Network" "Shutdown...";
-	n.run <- false
+	n.run <- false;
+	Hashtbl.iter (fun k peer -> 
+		Peer.disconnect peer
+	) n.peers
 ;;
 
 let step n bc = 

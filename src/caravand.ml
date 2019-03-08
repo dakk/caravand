@@ -4,7 +4,20 @@ open Random;;
 open Config;;
 open Bitcoinml;;
 
+type run = { mutable run: bool };;
+
+
 let main () =
+	let running = { run=true } in
+	let loop n bc = 
+		while running.run do (
+			Chain.step bc;
+			Net.step n bc;
+			Unix.sleep 1
+		) done;
+		Chain.shutdown bc;
+		Net.shutdown n
+	in
 	Random.self_init ();
 	Log.info Constants.name "Starting %s" Constants.version;
 	let conf = Config.parse_base_path () |> Config.load_or_init |> Config.parse_command_line in
@@ -25,27 +38,23 @@ let main () =
 		let rpc = Rpc.init conf.rpc bc n in
 		let rpc_thread = Thread.create (fun rpc -> Rpc.loop rpc) rpc in
 
-		while true do (
-			Chain.step bc;
-			Net.step n bc
-		) done;
-		
-		let sighandler signal =
-			Log.fatal Constants.name "Quit signal, shutdown. Please wait for the secure shutdown procedure.";
-			Net.shutdown n;
-			Rpc.shutdown rpc;
-			Chain.shutdown bc
-		in
+		let loop_thread = Thread.create (fun () -> loop n bc) () in
 
-		(*Sys.set_signal Sys.sigint @@ Signal_handle (sighandler);*)
+		let sighandler signal =
+			Log.fatal Constants.name "Quit signal, shutdown. Please wait for the secure shutdown procedure...";
+			running.run <- false;
+			Log.info Constants.name "Waiting for childs";
+			Rpc.shutdown rpc;
+			Thread.join rpc_thread;
+			Thread.join loop_thread;
+			(*Thread.join net_thread;
+			Thread.join chain_thread;*)
+
+			Log.info Constants.name "Exit.";
+		in
 		Sys.set_signal Sys.sigint @@ Signal_handle (sighandler);
 
-		Log.info Constants.name "Waiting for childs";
-
-		(*Thread.join net_thread;
-		Thread.join chain_thread;*)
-		Thread.join rpc_thread;
-		Log.info Constants.name "Exit.";
+		Thread.join loop_thread
 ;;
 
 main ();;
