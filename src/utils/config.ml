@@ -7,14 +7,14 @@ type rpc = {
 };;
 
 type t = {
-	peers	 		: int;
-	chain			: string;
+	peers	 	: int;
+	chain		: string;
 	base_path	: string;
-	path			: string;
+	path		: string;
 
-	rpc				: rpc;
-	log_level			: int;
-	cache_size : int;
+	rpc			: rpc;
+	log_level	: int;
+	cache_size 	: int;
 };;
 
 let parse_base_path () = 
@@ -43,7 +43,7 @@ let parse_command_line conf =
 		Printf.printf " -p 12, --peer 12\tSet the number of peers\n"; 
 		Printf.printf " -d /path/, --data-dir /path/\tSelect the destination directory for data\n"; 
 		Printf.printf " -rpp 8087, --rpc-port 8087\t\t\tSelect the rpc api port\n%!";  
-		Printf.printf " -cs 16, --cache-size 16\t\t\tSet the cache size\n%!";  
+		Printf.printf " -cs 128, --cache-size 128\t\t\tSet the cache size (min is 64)\n%!";  
 		Printf.printf " -ll 5, --log-level 5\tSet the log level\n%!";  
 		Thread.exit (); 
 		conf
@@ -76,8 +76,8 @@ let parse_command_line conf =
 		| "-cs" -> 
 			Log.debug "Config" "Setting the cache size to: %s blocks" x';
 			let nblocks = int_of_string x' in
-			if nblocks < 1 then (
-				Log.error "Config" "Cache size must be greater than 1";
+			if nblocks < 64 then (
+				Log.error "Config" "Cache size must be greater than 63";
 				failwith "Config error")
 			else
 				parse ({ conf with cache_size= (int_of_string x') }) xl'

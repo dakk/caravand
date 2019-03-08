@@ -106,7 +106,7 @@ let recv peer =
 	| bsize when Uint32.compare bsize (Uint32.zero) < 0 -> None
 	| bsize when Uint32.compare bsize (Uint32.zero) = 0 -> 
 		let res = Buffer.to_bytes acc in
-		Buffer.clear acc; Some (res)
+		Buffer.clear acc; Some (res |> Bytes.to_string)
 	| bsize ->
 		let csize = if bsize >= (Uint32.of_int 0xFFFF) then 0xFFFF else Uint32.to_int bsize in
 		let rdata = Bytes.create csize in
@@ -118,7 +118,7 @@ let recv peer =
 			Thread.wait_timed_read peer.socket 0.1 |> ignore;
 			recv_chunks bsize acc (zerol+1)
 		| rl, zerol when rl > 0 -> (
-			Buffer.add_bytes acc (Bytes.sub_string rdata 0 rl);
+			Buffer.add_bytes acc (Bytes.sub_string rdata 0 rl |> Bytes.of_string);
 			recv_chunks (Uint32.sub bsize (Uint32.of_int rl)) acc 0
 		)
 		| _ -> None
@@ -131,7 +131,7 @@ let recv peer =
 		| rl when rl < 0 -> disconnect peer; None
 		| rl when rl = 0 ->	None
 		| rl when rl > 0 -> (
-			let m = Message.parse_header data in
+			let m = Message.parse_header (data |> Bytes.to_string) in
 						
 			(* Read and parse the message*)
 			peer.received <- peer.received + 24;

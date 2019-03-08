@@ -15,13 +15,13 @@ open Yojson.Basic.Util;;
 
 let send socket str = 
   let len = String.length str in
-  send socket str 0 len [] |> ignore
+  send socket (str |> Bytes.of_string) 0 len [] |> ignore
 ;;
 
 let recv socket = 
   let data_raw = Bytes.create 4096 in
 	let reqlen = Unix.recv socket data_raw 0 4096 [] in
-  String.sub data_raw 0 reqlen
+  String.sub (data_raw |> Bytes.to_string) 0 reqlen
 ;;
 
 
@@ -66,7 +66,7 @@ module JSONRPC = struct
 end
 
 let handle_request bc net req = 
-	let reply = Helper.JSONRPC.reply req in
+	let reply = JSONRPC.reply req in
 
 	Printf.printf "%s\n%!" req.methodn;
 	match req.methodn with
@@ -106,14 +106,14 @@ let init (rconf: Config.rpc) bc net = {
 	blockchain= bc; 
 	conf= rconf; 
 	network= net; 
-	run= rconf.enable;
+	run= true;
 	socket= socket PF_INET SOCK_STREAM 0
 };;
 
 let loop a =
 	let rec do_listen socket =
 		let (client_sock, _) = accept socket in
-		match Helper.JSONRPC.parse_request client_sock with
+		match JSONRPC.parse_request client_sock with
 		| None -> 
 			(*close client_sock;*)
 			if a.run then do_listen socket
@@ -122,17 +122,13 @@ let loop a =
 			(*close client_sock;*)
 			if a.run then do_listen socket
 	in
-	if a.conf.enable then (
-		Log.info "Api.Rpc" "Binding to port: %d" a.conf.port;
-		Helper.listen a.socket a.conf.port 8;
-    try do_listen a.socket with _ -> ()
-	) else ()
+	Log.info "Api.Rpc" "Binding to port: %d" a.conf.port;
+	listen a.socket a.conf.port 8;
+  try do_listen a.socket with _ -> ()
 ;;
 
 let shutdown a = 
-	if a.conf.enable then (
-    Log.fatal "Api.Rpc" "Shutdown...";
-		Helper.shutdown a.socket;
-		a.run <- false
-  ) else ()
+  Log.fatal "Api.Rpc" "Shutdown...";
+	shutdown a.socket;
+	a.run <- false
 ;;
