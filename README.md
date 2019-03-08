@@ -17,9 +17,10 @@ The software is still in development and currently **it does not work**; please 
 
 Caravand is based on the bitcoinml ocaml library https://github.com/dakk/bitcoinml/
 
-
+<!--
 ## Documentation
 An updated documentation is available [here](https://github.com/dakk/caravand/wiki).
+-->
 
 ## License
 
