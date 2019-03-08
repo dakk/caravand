@@ -45,6 +45,7 @@ let main () =
 		| true -> (
 			Log.fatal Constants.name "Quit signal, shutdown. Please wait for the secure shutdown procedure...";
 			running.run <- false;
+			Net.shutdown n;
 			Log.info Constants.name "Waiting for childs";
 			Thread.join loop_thread;
 			Rpc.shutdown rpc;

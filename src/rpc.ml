@@ -14,8 +14,10 @@ open Yojson.Basic.Util;;
 
 
 let send socket str = 
-  let len = String.length str in
-  send socket (str |> Bytes.of_string) 0 len [] |> ignore
+	let data = Bytes.of_string ("HTTP/1.1 200 OK\nContent-type: application/json-rpc\n\n" ^ str) in
+  let len = Bytes.length data in
+	Log.info "Rpc" "%s" str;
+  send socket data 0 len [] |> ignore
 ;;
 
 let recv socket = 
@@ -38,15 +40,29 @@ module JSONRPC = struct
   type req = {
     methodn : string;
     params  : Yojson.Basic.t list;
-    id      : string;
+    id      : int;
 		socket 	: Unix.file_descr;
   };;
 
   let reply req result = 
 		`Assoc [
-			("id", `String req.id);
+			("jsonrpc", `String "2.0");
 			("result", result);
-		] |> to_string |> send req.socket
+			("id", `Int req.id)
+		] |> Yojson.Safe.to_string |> send req.socket;
+		close req.socket
+  ;;
+
+  let reply_err req code message = 
+		`Assoc [
+			("id", `Int req.id);
+			("error", `Assoc [
+				("code", `Int code);
+				("message", `String message);
+			]);
+			("jsonrpc", `String "2.0")
+		] |> to_string |> send req.socket;
+		close req.socket
   ;;
 
   let parse_request socket = 
@@ -57,8 +73,8 @@ module JSONRPC = struct
 			let j = Yojson.Basic.from_string body in
 			Some ({
 				socket= socket;
-				id= j |> member "id" |> to_string;
-				params= []; (*j |> member "params" |> to_list;*)
+				id= j |> member "id" |> to_int;
+				params= j |> member "params" |> to_list;
 				methodn= j |> member "method" |> to_string;
 			})
 		) with _ -> None
@@ -67,37 +83,41 @@ end
 
 let handle_request bc net req = 
 	let reply = JSONRPC.reply req in
+	let na () = reply (`String "Not handled") in
 
-	Log.debug "Rpc" "Request %s: %s\n%!" req.methodn (Yojson.Basic.to_string (`List req.params));
+	Log.info "Rpc" "Request %s: %s" req.methodn (Yojson.Basic.to_string (`List req.params));
 	match (req.methodn, req.params) with
+	| "echo", [`String hdata] -> reply @@ `String hdata
 	| "estimatesmartfee", [`Int target; `String mode] -> (
-		
+		na ()
 	)
 	| "gettxout", [`String txid; `Int n] -> (
-		
+		na ()
 	)
 	| "sendrawtransaction", [`String hex] -> (
 		match Tx.parse hex with
 		| _, Some (tx) ->
 			Chain.broadcast_tx bc tx;
 			reply (`String tx.hash)
-		| _, _ -> ()
+		| _, _ -> na ()
 	)
 	| "getblockcount", [] -> 
 		let bl = Int64.to_int bc.block_height in
 		reply (`Int bl)
 	| "getblockhash", [`String b] -> (
 			match Storage.get_blocki bc.storage @@ Int64.of_string b with
-			| None -> ()
+			| None -> na ()
 			| Some (b) -> reply (`String b.header.hash)
 	)
 	| "getrawblock", [`String b]
 	| "getblock", [`String b; `Bool false] -> (
 		match Storage.get_block bc.storage b with
-		| None -> ()
+		| None -> na ()
 		| Some (b) -> reply (`String (Block.serialize b))
 	)
-	| _ -> ()
+	| _ -> 
+		Log.info "Rpc" "Request %s not handled" req.methodn;
+		na ()
 ;;
 
 type t = {
@@ -121,11 +141,11 @@ let loop a =
 		let (client_sock, _) = accept socket in
 		match JSONRPC.parse_request client_sock with
 		| None -> 
-			(*close client_sock;*)
+			close client_sock;
 			if a.run then do_listen socket
 		| Some (req) ->
 			handle_request a.blockchain a.network req;
-			(*close client_sock;*)
+			Log.info "Rpc" "Request handled, closed connection";
 			if a.run then do_listen socket
 	in
 	Log.info "Rpc" "Binding to port: %d" a.conf.port;
@@ -135,6 +155,7 @@ let loop a =
 
 let shutdown a = 
   Log.fatal "Rpc" "Shutdown...";
+	close a.socket;
 	shutdown a.socket;
 	a.run <- false
 ;;
