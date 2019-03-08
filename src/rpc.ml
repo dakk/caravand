@@ -16,7 +16,6 @@ open Yojson.Basic.Util;;
 let send socket str = 
 	let data = Bytes.of_string ("HTTP/1.1 200 OK\nContent-type: application/json-rpc\n\n" ^ str) in
   let len = Bytes.length data in
-	Log.info "Rpc" "%s" str;
   send socket data 0 len [] |> ignore
 ;;
 
@@ -45,6 +44,7 @@ module JSONRPC = struct
   };;
 
   let reply req result = 
+		Log.info "Rpc →" "%s" @@ Yojson.Safe.to_string result;
 		`Assoc [
 			("jsonrpc", `String "2.0");
 			("result", result);
@@ -86,12 +86,15 @@ let handle_request bc net req =
 	let na () = reply (`String "Not handled") in
 	let nf () = reply (`String "Not found") in
 
-	Log.info "Rpc" "Request %s: %s" req.methodn (Yojson.Basic.to_string (`List req.params));
+	Log.info "Rpc ←" "%s %s" req.methodn (Yojson.Basic.to_string (`List req.params));
 	match (req.methodn, req.params) with
 	| "echo", [`String hdata] -> reply @@ `String hdata
 	| "echo", [] -> reply @@ `String "Hello from caravand"
 	| "estimatesmartfee", [`Int target; `String mode] -> (
-		na ()
+		reply @@ `Assoc [
+			("blocks", `Int target);
+			("feerate", `Float 0.000003)
+		]
 	)
 	| "gettxout", [`String txid; `Int n] -> (
 		na ()
@@ -108,9 +111,7 @@ let handle_request bc net req =
 		| None -> nf ()
 		| Some (bh) -> reply (`String bh.hash)
 	)
-	| "getblockcount", [] -> 
-		let bl = Int64.to_int bc.block_height in
-		reply (`Int bl)
+	| "getblockcount", [] -> reply (`Int (Int64.to_int bc.header_height))
 	| "getrawblock", [`String b]
 	| "getblock", [`String b; `Bool false] -> (
 		match Storage.get_block bc.storage b with
@@ -118,7 +119,7 @@ let handle_request bc net req =
 		| Some (b) -> reply (`String (Block.serialize b))
 	)
 	| _ -> 
-		Log.info "Rpc" "Request %s not handled" req.methodn;
+		Log.error "Rpc ↚" "Request %s not handled" req.methodn;
 		na ()
 ;;
 
@@ -147,7 +148,6 @@ let loop a =
 			if a.run then do_listen socket
 		| Some (req) ->
 			handle_request a.blockchain a.network req;
-			Log.info "Rpc" "Request handled, closed connection";
 			if a.run then do_listen socket
 	in
 	Log.info "Rpc" "Binding to port: %d" a.conf.port;
