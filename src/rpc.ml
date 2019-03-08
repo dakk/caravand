@@ -70,10 +70,10 @@ let handle_request bc net req =
 
 	Log.debug "Rpc" "Request %s: %s\n%!" req.methodn (Yojson.Basic.to_string (`List req.params));
 	match (req.methodn, req.params) with
-	| "estimatesmartfee", [`Int target] -> (
+	| "estimatesmartfee", [`Int target; `String mode] -> (
 		
 	)
-	| "gettxout", [`String txid, `Int n] -> (
+	| "gettxout", [`String txid; `Int n] -> (
 		
 	)
 	| "sendrawtransaction", [`String hex] -> (

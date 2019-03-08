@@ -48,10 +48,17 @@ let load_or_init st (conf: Config.t) =
 ;;
 
 
+type txout_entry = {
+	height: int;
+	blockhash: Hash.t;
+	coinbase: bool;
+	txout: Tx.Out.t;
+};;
 
 type t = {
 	block_store: Store_raw.t;
 	state_store: Store_raw.t;
+	txout_store: Store_raw.t;
 	config: Config.t;
 	mutable chainstate: Chainstate.t;
 };;
@@ -63,6 +70,7 @@ let load path config =
 		chainstate= load_or_init state_store config;
 		config= config;
 		block_store= Store_raw.load path "blocks";
+		txout_store= Store_raw.load path "txout";
 		state_store= state_store
 };;
 
@@ -71,14 +79,21 @@ let save st = Chainstate_index.set st.state_store "" st.chainstate;;
 let sync st = 
   save st;
 	Store_raw.sync st.block_store;
+	Store_raw.sync st.txout_store;
 	Store_raw.sync st.state_store
 ;;
 
 let close st = 
 	sync st;
 	Store_raw.close st.block_store;
+	Store_raw.close st.txout_store;
 	Store_raw.close st.state_store
 ;;
+
+
+let insert_txout st txhash n height blockhash txout = Storage_txout.insert_txout st.txout_store txhash n height blockhash txout;;
+let get_txout st txhash n = Storage_txout.get_txout st.txout_store txhash n;;
+let remove_txout st txhash n = Storage_txout.remove_txout st.txout_store txhash n;;
 
 
 let get_blocks st hashes = Storage_blocks.get_blocks st.block_store hashes;;
