@@ -84,10 +84,12 @@ end
 let handle_request bc net req = 
 	let reply = JSONRPC.reply req in
 	let na () = reply (`String "Not handled") in
+	let nf () = reply (`String "Not found") in
 
 	Log.info "Rpc" "Request %s: %s" req.methodn (Yojson.Basic.to_string (`List req.params));
 	match (req.methodn, req.params) with
 	| "echo", [`String hdata] -> reply @@ `String hdata
+	| "echo", [] -> reply @@ `String "Hello from caravand"
 	| "estimatesmartfee", [`Int target; `String mode] -> (
 		na ()
 	)
@@ -101,18 +103,18 @@ let handle_request bc net req =
 			reply (`String tx.hash)
 		| _, _ -> na ()
 	)
+	| "getblockhash", [`Int height] -> (
+		match Storage.get_headeri bc.storage @@ Int64.of_int height with 
+		| None -> nf ()
+		| Some (bh) -> reply (`String bh.hash)
+	)
 	| "getblockcount", [] -> 
 		let bl = Int64.to_int bc.block_height in
 		reply (`Int bl)
-	| "getblockhash", [`String b] -> (
-			match Storage.get_blocki bc.storage @@ Int64.of_string b with
-			| None -> na ()
-			| Some (b) -> reply (`String b.header.hash)
-	)
 	| "getrawblock", [`String b]
 	| "getblock", [`String b; `Bool false] -> (
 		match Storage.get_block bc.storage b with
-		| None -> na ()
+		| None -> nf ()
 		| Some (b) -> reply (`String (Block.serialize b))
 	)
 	| _ -> 
