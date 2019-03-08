@@ -69,27 +69,20 @@ let handle_request bc net req =
 	let reply = JSONRPC.reply req in
 
 	Printf.printf "%s\n%!" req.methodn;
-	match req.methodn with
-	| "getblockcount" -> 
+	match (req.methodn, req.params) with
+	| ("getblockcount", []) -> 
 		let bl = Int64.to_int bc.block_height in
 		reply (`Int bl)
-	| "getblockhash" -> (
-		match req.params with
-		| [`String b] -> (
+	| ("getblockhash", [`String b]) -> (
 			match Storage.get_blocki bc.storage @@ Int64.of_string b with
 			| None -> ()
 			| Some (b) -> reply (`String b.header.hash)
-		)
-		| _ -> ()
 	)
-	| "getrawblock" -> (
-		match req.params with
-		| [`String b] -> (
-			match Storage.get_block bc.storage b with
-			| None -> ()
-			| Some (b) -> reply (`String (Block.serialize b))
-		)
-		| _ -> ()
+	| ("getrawblock", [`String b])
+	| ("getblock", [`String b; `Bool false]) -> (
+		match Storage.get_block bc.storage b with
+		| None -> ()
+		| Some (b) -> reply (`String (Block.serialize b))
 	)
 	| _ -> ()
 ;;
