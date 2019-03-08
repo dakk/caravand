@@ -316,11 +316,14 @@ let step bc =
 			broadcast_tx bc tx
 		| RES_HBLOCKS (hbs, addr) when List.length hbs = 0 -> ()
 		| RES_HBLOCKS (hbs, addr) -> (
+			let oldhh = Int64.to_int bc.header_height in
 			(*Log.debug "Blockchain ←" "Headers %d" (List.length hbs);*)
 			List.iter (fun h -> consume_header h) @@ List.rev hbs;
-			Log.info "Blockchain ←" "%d Block Headers processed. Last is %d: %s behind" (List.length hbs) (Int64.to_int bc.header_height) 
-				(Timediff.diffstring (Unix.time ()) bc.header_last.time);
-			Storage.sync bc.storage	
+			if oldhh < (Int64.to_int bc.header_height) then (
+				Log.info "Blockchain ←" "%d Block Headers processed. Last is %d: %s behind" ((Int64.to_int bc.header_height) - oldhh) (Int64.to_int bc.header_height) 
+					(Timediff.diffstring (Unix.time ()) bc.header_last.time);
+				Storage.sync bc.storage	
+			)
 		)
 		) |> ignore;
 
@@ -346,13 +349,13 @@ let step bc =
 			bc.sync_headers <- true
 		);
 
-		(match bc.block_last.header.time with
-		| 0.0 -> (
+		(match bc.block_last.header.time, bc.sync_headers with
+		| 0.0, true -> (
 			(*Log.debug "Blockchain" "Blocks not in sync, waiting for genesis";*)
 			bc.sync <- false;
 			bc.requests << Request.REQ_BLOCKS ([bc.params.genesis.hash], None)
 		)
-		| _ -> (
+		| _, true -> (
 			(*if bc.block_last.header.time < (Unix.time () -. 60. *. 10.) then ( *)
 			if bc.block_last.header.hash <> bc.header_last.hash then (
 				(*Log.info "Blockchain" "Blocks not in sync: %s behind" @@ Timediff.diffstring (Unix.time ()) bc.block_last.header.time;*)
@@ -376,7 +379,8 @@ let step bc =
 				(*Log.info "Blockchain" "Blocks in sync: last block is %s" @@ Timediff.diffstring (Unix.time ()) bc.block_last.header.time;*)
 				bc.sync <- true
 			)
-		));
+		)
+		| _, _ -> ());
 
 		(* Check branch status *)
 		(* Check if a branch is too old, then delete it *)

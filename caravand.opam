@@ -15,10 +15,10 @@ bug-reports: "https://github.com/dakk/caravand/issues"
 license: "MIT"
 dev-repo: "git+https://github.com/dakk/caravand.git"
 
-build: ["dune" "build" "-p" name]
+build: ["dune" "build" "-p" name "-j" jobs]
 
 depends: [
-  "ocaml-base-compiler" {>= "4.05.0"}
+  "ocaml" {>= "4.05.0"}
   "dune" {build & >= "1.6.0"}
   "base" {build & >= "v0.11.1"}
   "stdio" {build & >= "v0.11.0"}
