@@ -32,10 +32,7 @@ let parse_base_path () =
 ;;
 
 let parse_command_line conf =
-	let bool_of_string s = match s with
-	| "true" -> true
-	| _ -> false
-	in
+	(* let bool_of_string s = match s with | "true" -> true | _ -> false in *)
 	let help conf = 
 		Printf.printf "Usage:\n"; 
 		Printf.printf " -h, --help\t\t\tShow this help\n"; 
@@ -127,7 +124,7 @@ let rec load_or_init base_path =
 			}
 		with
 		| _ ->
-			let (jconf: Yojson.Basic.json) = `Assoc [
+			let (jconf: Yojson.Basic.t) = `Assoc [
 				("peers", `Int 6);
 				("chain", `String "XTN");
 				("cache_size", `Int 128);
