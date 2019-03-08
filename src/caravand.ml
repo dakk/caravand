@@ -40,18 +40,19 @@ let main () =
 
 		let loop_thread = Thread.create (fun () -> loop n bc) () in
 
-		let sighandler signal =
+		let sighandler signal = match running.run with
+		| false -> Log.fatal Constants.name "Quit signal, shutdown already in progress, please wait..."
+		| true -> (
 			Log.fatal Constants.name "Quit signal, shutdown. Please wait for the secure shutdown procedure...";
 			running.run <- false;
 			Log.info Constants.name "Waiting for childs";
+			Thread.join loop_thread;
 			Rpc.shutdown rpc;
 			Thread.join rpc_thread;
-			Thread.join loop_thread;
 			(*Thread.join net_thread;
 			Thread.join chain_thread;*)
-
 			Log.info Constants.name "Exit.";
-		in
+		) in
 		Sys.set_signal Sys.sigint @@ Signal_handle (sighandler);
 
 		Thread.join loop_thread

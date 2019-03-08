@@ -68,18 +68,31 @@ end
 let handle_request bc net req = 
 	let reply = JSONRPC.reply req in
 
-	Printf.printf "%s\n%!" req.methodn;
+	Log.debug "Rpc" "Request %s: %s\n%!" req.methodn (Yojson.Basic.to_string (`List req.params));
 	match (req.methodn, req.params) with
-	| ("getblockcount", []) -> 
+	| "estimatesmartfee", [`Int target] -> (
+		
+	)
+	| "gettxout", [`String txid, `Int n] -> (
+		
+	)
+	| "sendrawtransaction", [`String hex] -> (
+		match Tx.parse hex with
+		| _, Some (tx) ->
+			Chain.broadcast_tx bc tx;
+			reply (`String tx.hash)
+		| _, _ -> ()
+	)
+	| "getblockcount", [] -> 
 		let bl = Int64.to_int bc.block_height in
 		reply (`Int bl)
-	| ("getblockhash", [`String b]) -> (
+	| "getblockhash", [`String b] -> (
 			match Storage.get_blocki bc.storage @@ Int64.of_string b with
 			| None -> ()
 			| Some (b) -> reply (`String b.header.hash)
 	)
-	| ("getrawblock", [`String b])
-	| ("getblock", [`String b; `Bool false]) -> (
+	| "getrawblock", [`String b]
+	| "getblock", [`String b; `Bool false] -> (
 		match Storage.get_block bc.storage b with
 		| None -> ()
 		| Some (b) -> reply (`String (Block.serialize b))
@@ -115,13 +128,13 @@ let loop a =
 			(*close client_sock;*)
 			if a.run then do_listen socket
 	in
-	Log.info "Api.Rpc" "Binding to port: %d" a.conf.port;
+	Log.info "Rpc" "Binding to port: %d" a.conf.port;
 	listen a.socket a.conf.port 8;
   try do_listen a.socket with _ -> ()
 ;;
 
 let shutdown a = 
-  Log.fatal "Api.Rpc" "Shutdown...";
+  Log.fatal "Rpc" "Shutdown...";
 	shutdown a.socket;
 	a.run <- false
 ;;
