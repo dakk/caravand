@@ -1,11 +1,19 @@
 # caravand
-Bitcoin light node for c-lightning with bitcoin-core compatible jsonrpc 
+
+<!-- ![Logo of caravand](https://github.com/dakk/caravand/raw/master/docs/logo/logo.png) -->
 
 [![Build Status](https://travis-ci.org/dakk/caravand.svg)](https://travis-ci.org/dakk/caravand)
 [![MIT License](http://img.shields.io/badge/license-MIT-blue.svg)](https://github.com/dakk/caravand/blob/master/LICENSE)
 [![docs](https://img.shields.io/badge/doc-online-blue.svg)](https://github.com/dakk/caravand/wiki)
 
-![Logo of caravand](https://github.com/dakk/caravand/raw/master/docs/logo/logo.png)
+Bitcoin light node for c-lightning with bitcoin-core compatible jsonrpc. 
+
+Unlike [spruned](https://github.com/gdassori/spruned) who connects both to electrum server and bitcoind nodes,
+caravand only connects to bitcoind nodes, and act more or less as a pruned node, avoiding data-miss 
+situations: the disk footprint is larger than spruned (since we keep more blocks and txout indexes) but less 
+than a bitcoind node (or a bitcoind pruned node).
+The software is still in development and currently **it does not work**; please refer to this 
+[issue](https://github.com/dakk/caravand/issues/1) for the project status.
 
 Caravand is based on the bitcoinml ocaml library https://github.com/dakk/bitcoinml/
 
