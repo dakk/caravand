@@ -6,8 +6,10 @@ open Store
 
 module Chainstate : sig
 	type t = {
+		mutable header       	: Hash.t;
+		mutable header_height        	: uint32;
 		mutable block       	: Hash.t;
-		mutable height        	: uint32;
+		mutable block_height        	: uint32;
 	};;
 
 	val serialize: t -> string
