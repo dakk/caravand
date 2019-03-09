@@ -85,45 +85,47 @@ end
 let handle_request bc net req = 
 	let reply = JSONRPC.reply req in
 	let reply_err = JSONRPC.reply_err req in
-	let na () = reply (`String "Not handled") in
-	let nf () = reply (`String "Not found") in
-	let nosync () = reply_err (-28) "Rewinding blocks..." in
+	let notavailable () = reply_err (-32) "Method not found." in
+	let nosync () = reply_err (-28) "Synching..." in
+	let notfound () = reply_err (-28) "Resource not present." in
 
 	Log.info "Rpc ←" "%s %s" req.methodn (Yojson.Basic.to_string (`List req.params));
-	match (req.methodn, req.params) with
-	| "echo", [`String hdata] -> reply @@ `String hdata
-	| "echo", [] -> reply @@ `String "Hello from caravand"
-	| "estimatesmartfee", [`Int target; `String mode] -> (
+	match (req.methodn, req.params, bc.sync_headers) with
+	| "echo", [`String hdata], _ -> reply @@ `String hdata
+	| "echo", [], _ -> reply @@ `String "Hello from caravand"
+	| "estimatesmartfee", [`Int target; `String mode], false -> nosync ()
+	| "estimatesmartfee", [`Int target; `String mode], true -> (
 		reply @@ `Assoc [
 			("blocks", `Int target);
 			("feerate", `Float 0.000003)
 		]
 	)
-	| "gettxout", [`String txid; `Int n] -> (
-		na ()
+	| "gettxout", [`String txid; `Int n], _ -> (
+		notavailable ()
 	)
-	| "sendrawtransaction", [`String hex] -> (
+	| "sendrawtransaction", [`String hex], _ -> (
 		match Tx.parse hex with
 		| _, Some (tx) ->
 			Chain.broadcast_tx bc tx;
 			reply (`String tx.hash)
-		| _, _ -> na ()
+		| _, _ -> notfound ()
 	)
-	| "getblockhash", [`Int height] -> (
+	| "getblockhash", [`Int height], _ -> (
 		match Storage.get_headeri bc.storage @@ Int64.of_int height with 
-		| None -> nf ()
+		| None -> notfound ()
 		| Some (bh) -> reply (`String bh.hash)
 	)
-	| "getblockcount", [] -> if bc.sync then reply (`Int (Int64.to_int bc.block_height)) else nosync ()
-	| "getrawblock", [`String b]
-	| "getblock", [`String b; `Bool false] -> (
+	| "getblockcount", [], true -> reply (`Int (Int64.to_int bc.block_height))
+	| "getblockcount", [], false -> nosync ()
+	| "getrawblock", [`String b], _
+	| "getblock", [`String b; `Bool false], _ -> (
 		match Storage.get_block bc.storage b with
-		| None -> nf ()
+		| None -> notfound ()
 		| Some (b) -> reply (`String (Block.serialize b))
 	)
 	| _ -> 
 		Log.error "Rpc ↚" "Request %s not handled" req.methodn;
-		na ()
+		notavailable ()
 ;;
 
 type t = {
