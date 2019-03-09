@@ -40,7 +40,7 @@ let parse_command_line conf =
 		Printf.printf " -p 12, --peer 12\tSet the number of peers\n"; 
 		Printf.printf " -d /path/, --data-dir /path/\tSelect the destination directory for data\n"; 
 		Printf.printf " -rpp 8087, --rpc-port 8087\t\t\tSelect the rpc api port\n%!";  
-		Printf.printf " -cs 128, --cache-size 128\t\t\tSet the cache size (min is 64)\n%!";  
+		Printf.printf " -cs 1024, --cache-size 128\t\t\tSet the cache size (min is 64)\n%!";  
 		Printf.printf " -ll 5, --log-level 5\tSet the log level\n%!";  
 		Thread.exit (); 
 		conf
@@ -127,7 +127,7 @@ let rec load_or_init base_path =
 			let (jconf: Yojson.Basic.t) = `Assoc [
 				("peers", `Int 6);
 				("chain", `String "BTC");
-				("cache_size", `Int 4096);
+				("cache_size", `Int 1024);
 				("rpc", `Assoc [
 					("port", `Int 8332);
 					("user", `String "test");
