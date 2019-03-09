@@ -32,10 +32,10 @@ depends: [
   "leveldb" {>= "1.2.0"}
   "stdint" {>= "0.5.1"}
   "yojson" {>= "1.7.0"}
+  "hex" {>= "1.3.0"}
 
   "ounit" {with-test & >= "2.0.8"}
   "odoc" {with-test & >= "1.3.0"}
-  "hex" {with-test & >= "1.3.0"}
 ]
 
 depexts: [

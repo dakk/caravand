@@ -62,7 +62,7 @@ module JSONRPC = struct
 				("message", `String message);
 			]);
 			("jsonrpc", `String "2.0")
-		] |> to_string |> send req.socket;
+		] |> Yojson.Safe.to_string |> send req.socket;
 		close req.socket
   ;;
 
@@ -111,17 +111,19 @@ let handle_request bc net req =
 		| _, _ -> notfound ()
 	)
 	| "getblockhash", [`Int height], _ -> (
-		match Storage.get_headeri bc.storage @@ Int64.of_int height with 
+		match Storage.get_blocki bc.storage @@ Int64.of_int height with 
 		| None -> notfound ()
-		| Some (bh) -> reply (`String bh.hash)
+		| Some (b) -> reply (`String b.header.hash)
 	)
 	| "getblockcount", [], true -> reply (`Int (Int64.to_int bc.block_height))
 	| "getblockcount", [], false -> nosync ()
 	| "getrawblock", [`String b], _
-	| "getblock", [`String b; `Bool false], _ -> (
+	| "getblock", [`String b; `Bool false], _
+	| "getblock", [`String b; `Int 0], _ -> (
 		match Storage.get_block bc.storage b with
 		| None -> notfound ()
-		| Some (b) -> reply (`String (Block.serialize b))
+		| Some (b) -> match Block.serialize b |> Hex.of_string with
+		| `Hex h -> reply (`String h)
 	)
 	| _ -> 
 		Log.error "Rpc ↚" "Request %s not handled" req.methodn;
@@ -152,7 +154,8 @@ let loop a =
 			close client_sock;
 			if a.run then do_listen socket
 		| Some (req) ->
-			handle_request a.blockchain a.network req;
+			(try handle_request a.blockchain a.network req
+			with | e -> Log.error "Rpc" "Error handling reqest: %s %s" req.methodn @@ Printexc.to_string e);
 			if a.run then do_listen socket
 	in
 	Log.info "Rpc" "Binding to port: %d" a.conf.port;
