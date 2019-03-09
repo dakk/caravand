@@ -12,8 +12,8 @@ let main () =
 	let loop n bc = 
 		while running.run do (
 			Chain.step bc;
-			Net.step n bc;
-			Unix.sleep 1
+			Net.step n bc
+			(*Unix.sleep 1*)
 		) done;
 		Chain.shutdown bc;
 		Net.shutdown n

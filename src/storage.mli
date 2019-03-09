@@ -10,6 +10,7 @@ module Chainstate : sig
 		mutable header_height        	: uint32;
 		mutable block       	: Hash.t;
 		mutable block_height        	: uint32;
+		mutable prune_height	: uint32
 	};;
 
 	val serialize: t -> string

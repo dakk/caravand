@@ -126,8 +126,8 @@ let rec load_or_init base_path =
 		| _ ->
 			let (jconf: Yojson.Basic.t) = `Assoc [
 				("peers", `Int 6);
-				("chain", `String "XTN");
-				("cache_size", `Int 128);
+				("chain", `String "BTC");
+				("cache_size", `Int 4096);
 				("rpc", `Assoc [
 					("port", `Int 8332);
 					("user", `String "test");
