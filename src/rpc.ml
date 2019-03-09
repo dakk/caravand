@@ -54,6 +54,7 @@ module JSONRPC = struct
   ;;
 
   let reply_err req code message = 
+		Log.error "Rpc →" "%d - %s" code message;
 		`Assoc [
 			("id", `Int req.id);
 			("error", `Assoc [
@@ -83,8 +84,10 @@ end
 
 let handle_request bc net req = 
 	let reply = JSONRPC.reply req in
+	let reply_err = JSONRPC.reply_err req in
 	let na () = reply (`String "Not handled") in
 	let nf () = reply (`String "Not found") in
+	let nosync () = reply_err (-28) "Rewinding blocks..." in
 
 	Log.info "Rpc ←" "%s %s" req.methodn (Yojson.Basic.to_string (`List req.params));
 	match (req.methodn, req.params) with
@@ -111,7 +114,7 @@ let handle_request bc net req =
 		| None -> nf ()
 		| Some (bh) -> reply (`String bh.hash)
 	)
-	| "getblockcount", [] -> reply (`Int (Int64.to_int bc.header_height))
+	| "getblockcount", [] -> if bc.sync then reply (`Int (Int64.to_int bc.block_height)) else nosync ()
 	| "getrawblock", [`String b]
 	| "getblock", [`String b; `Bool false] -> (
 		match Storage.get_block bc.storage b with
