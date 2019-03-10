@@ -241,8 +241,8 @@ let step bc =
 		)
 		| _ -> ()
 	) else (
-		match (blazy, bc.block_last, bc.header_last) with
-		| (blazy, block, hl) when blazy.header.prev_block = block.header.hash -> ( (* Next block, header present *)
+		match (blazy, bc.block_last, bc.header_last, Storage.get_header bc.storage blazy.header.hash) with
+		| (blazy, block, hl, Some(bh)) when blazy.header.prev_block = block.header.hash -> ( (* Next block, header present *)
 			match Block_lazy.force blazy with
 			| Some (b) -> (
 				bc.blocks_requested <- bc.blocks_requested - 1;
@@ -262,7 +262,7 @@ let step bc =
 			)
 			| None -> ()
 		)
-		| (blazy, block, hl) when blazy.header.prev_block = hl.hash -> (* New block *)
+		| (blazy, block, hl, Some(bh)) when blazy.header.prev_block = hl.hash -> (* New block *)
 			if verify_block_header bc.params bc.header_height bc.header_last blazy.header then (
 				bc.header_last <- blazy.header;
 				bc.header_height <- Int64.succ bc.header_height;
@@ -285,10 +285,10 @@ let step bc =
 				Log.warn "Blockchain" "Block header validation failed: %s" blazy.header.hash
 			);
 			()
-		| (blazy, block, hl) when blazy.header.prev_block <> hl.hash -> (* New block maybe on side-branch *)
+		| (blazy, block, hl, None) when blazy.header.prev_block <> hl.hash -> (* New block maybe on side-branch *)
 			(*Log.debug "Blockchain" "Skip block %s %s %s" b.header.hash b.header.prev_block block.header.hash;*)
 			check_branch_updates blazy.header; ()
-		| (blazy, block, hl) -> ()
+		| (blazy, block, hl, None) -> ()
 	) in
 	let consume_header h = 
 		if verify_block_header bc.params bc.header_height bc.header_last h then (
@@ -350,7 +350,9 @@ let step bc =
 			if bc.header_last.time < (Unix.time () -. 60. *. 10.) then 
 				bc.requests << Request.REQ_HBLOCKS ([bc.header_last.hash], None);
 				
-			Log.debug "Blockchain" "Headers in sync: last block is %s" @@ Timediff.diffstring (Unix.time ()) bc.header_last.time;
+			Log.debug "Blockchain" "Headers in sync: last block is %s ago, %d total blocks" 
+				(Timediff.diffstring (Unix.time ()) bc.header_last.time ~munit:"minutes")
+				(bc.block_height |> Int64.to_int);
 			bc.sync_headers <- true
 		);
 
@@ -385,7 +387,9 @@ let step bc =
 					bc.blocks_requested <- 500;
 					bc.requests << Request.REQ_BLOCKS (hashes, None))
 			) else (
-				Log.info "Blockchain" "Blocks in sync: last block is %s" @@ Timediff.diffstring (Unix.time ()) bc.block_last.header.time;
+				Log.info "Blockchain" "Blocks in sync: last block is %s ago, %d total blocks" 
+					(Timediff.diffstring (Unix.time ()) bc.block_last.header.time ~munit:"minutes")
+					(bc.block_height |> Int64.to_int);
 				bc.sync <- true
 			)
 		)

@@ -20,6 +20,7 @@ let diff a b =
 let diffstring ?munit:(munit="full") a b =
 	let df = diff a b in
 	match munit with
+	| "minutes" -> Printf.sprintf "%d minutes" (df.years * 365 + df.months * 31 + df.days * 24 + df.hours * 60 + df.minutes)
 	| "days" -> Printf.sprintf "%d days" (df.years * 365 + df.months * 31 + df.days)
 	| "weeks" -> Printf.sprintf "%d weeks" ((df.years * 365 + df.months * 31 + df.days) / 7)
 	| "full"
