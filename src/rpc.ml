@@ -14,9 +14,15 @@ open Yojson.Basic.Util;;
 
 
 let send socket str = 
+	let rec send_inner estr = match Bytes.length estr with
+	| 0 -> 0
+	| l when l <= 65536 -> send socket estr 0 l []
+	| l when l > 65536 ->
+		send socket (Bytes.sub estr 0 65536) 0 65536 [];
+		65536 + send_inner (Bytes.sub estr 65536 @@ l - 65536)
+	in
 	let data = Bytes.of_string ("HTTP/1.1 200 OK\nContent-type: application/json-rpc\n\n" ^ str) in
-  let len = Bytes.length data in
-  send socket data 0 len [] |> ignore
+  send_inner data
 ;;
 
 let recv socket = 
@@ -44,7 +50,8 @@ module JSONRPC = struct
   };;
 
   let reply req result = 
-		Log.info "Rpc →" "%s" @@ Yojson.Safe.to_string result;
+		let asstr = Yojson.Safe.to_string result in
+		Log.info "Rpc →" "%s" @@ if String.length asstr > 48 then String.sub asstr 0 48 else asstr;
 		`Assoc [
 			("jsonrpc", `String "2.0");
 			("result", result);
@@ -166,6 +173,5 @@ let loop a =
 let shutdown a = 
   Log.fatal "Rpc" "Shutdown...";
 	close a.socket;
-	shutdown a.socket;
 	a.run <- false
 ;;

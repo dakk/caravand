@@ -49,7 +49,7 @@ let main () =
 			Log.info Constants.name "Waiting for childs";
 			Thread.join loop_thread;
 			Rpc.shutdown rpc;
-			Thread.join rpc_thread;
+			(* Thread.join rpc_thread; *)
 			(*Thread.join net_thread;
 			Thread.join chain_thread;*)
 			Log.info Constants.name "Exit.";
