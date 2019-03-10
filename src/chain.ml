@@ -365,7 +365,9 @@ let step bc =
 		| _, true -> (
 			(*if bc.block_last.header.time < (Unix.time () -. 60. *. 10.) then ( *)
 			if bc.block_last.header.hash <> bc.header_last.hash then (
-				Log.info "Blockchain" "Blocks not in sync: %s behind" @@ Timediff.diffstring (Unix.time ()) bc.block_last.header.time;
+				Log.info "Blockchain" "Blocks not in sync: %s behind (%d blocks)" 
+					(Timediff.diffstring (Unix.time ()) bc.block_last.header.time)
+					(Int64.sub bc.header_height bc.block_height |> Int64.to_int);
 				bc.sync <- false;
 
 				(* Ask the storage for next n blocks hashes *)
