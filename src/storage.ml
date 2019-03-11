@@ -52,14 +52,14 @@ module Chainstate_index = Store.Make_index
 
 let load_or_init st (conf: Config.t) = 
   match Chainstate_index.get st "" with
-    | Some (cs) -> cs
+	| Some (cs) -> cs
 		| None -> {
-			header= "0000000000000000000000000000000000000000000000000000000000000000";
+			header= Bitcoinml.Hash.zero;
 			header_height= Uint32.zero;
-			block= "0000000000000000000000000000000000000000000000000000000000000000";
+			block= Bitcoinml.Hash.zero;
 			block_height= Uint32.zero;
 			prune_height= Uint32.zero;
-    }
+	}
 ;;
 
 
@@ -125,7 +125,7 @@ let insert_header st height (header : Block.Header.t) =
 	Storage_blocks.insert_header st.block_store h header;
 	
   st.chainstate.header <- header.hash;
-	st.chainstate.header_height <- h;
+  st.chainstate.header_height <- h;
   save st
 ;;
 

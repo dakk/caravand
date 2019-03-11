@@ -46,6 +46,7 @@ type t = {
 	(* Last header status *)
 	mutable header_height	:	int64;
 	mutable header_last		: 	Header.t;
+	mutable header_last_received : float;
 
 	(* Last block status *)
 	mutable block_height 	:	int64;

@@ -222,7 +222,7 @@ let start peer bc =
 		
 		let rec loop () = (match peer.status with
 		| CONNECTED ->		
-			let toread = Thread.wait_timed_read peer.socket 2.0 in
+			let toread = Thread.wait_timed_read peer.socket 10.0 in
 			(if toread then handle peer bc);
 			loop ()
 		| _ -> Thread.exit ())
