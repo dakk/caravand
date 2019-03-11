@@ -13,8 +13,8 @@ module Chainstate : sig
 		mutable prune_height	: uint32
 	};;
 
-	val serialize: t -> string
-  val parse: string -> t option
+	val serialize: ?hex:bool -> t -> string
+  val parse: ?hex:bool -> string -> t option
 end
 
 type t = {

@@ -26,7 +26,7 @@ depends: [
   
   "bitstring" {>= "3.1.0"}
   "bignum" {>= "v0.10.0"}
-  "bitcoinml" {= "0.4.1"}
+  "bitcoinml" {= "0.4.2"}
   "cryptokit" {>= "1.13"}
   "ctypes" {>= "0.14.0"}
   "leveldb" {>= "1.2.0"}

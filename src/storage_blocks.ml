@@ -14,7 +14,7 @@ module Block_index = Store.Make_index
 module Block_lazy_index = Store.Make_index 
   (struct 
     type t = Block_lazy.t;;
-    let serialize b = match Block_lazy.force b with 
+    let serialize ?(hex=false) b = match Block_lazy.force b with 
     | Some (b) -> Block.serialize b
     | None -> ""
     ;;
@@ -33,8 +33,8 @@ module Block_header_index = Store.Make_index
 module Block_height_index = Store.Make_index 
   (struct 
     type t = string;;
-    let serialize o = o;;
-    let parse o = Some o;;
+    let serialize ?(hex=false) o = o;;
+    let parse ?(hex=false) o = Some o;;
   end) 
   (struct let prefix = "bi" end)
 ;;
@@ -42,8 +42,8 @@ module Block_height_index = Store.Make_index
 module Block_height_index_reverse = Store.Make_index 
   (struct 
     type t = Uint32.t;;
-    let serialize o = Printf.sprintf "%d" @@ Uint32.to_int o;;
-    let parse o = Some (Uint32.of_int @@ int_of_string o);;
+    let serialize ?(hex=false) o = Printf.sprintf "%d" @@ Uint32.to_int o;;
+    let parse ?(hex=false) o = Some (Uint32.of_int @@ int_of_string o);;
   end) 
   (struct let prefix = "bh" end)
 ;;

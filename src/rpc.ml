@@ -109,7 +109,7 @@ let handle_request bc net req =
 		notavailable ()
 	)*)
 	| "sendrawtransaction", [`String hex], _ -> (
-		match Tx.parse hex with
+		match Tx.parse ~hex:true hex with
 		| _, Some (tx) ->
 			Chain.broadcast_tx bc tx;
 			reply (`String tx.hash)
@@ -127,8 +127,7 @@ let handle_request bc net req =
 	| "getblock", [`String b; `Int 0], _ -> (
 		match Storage.get_block bc.storage b with
 		| None -> reply_err (-5) "Block not found"
-		| Some (b) -> match Block.serialize b |> Hex.of_string with
-		| `Hex h -> reply (`String h)
+		| Some (b) -> reply @@ `String (Block.serialize ~hex:true b)
 	)
 	| _ -> 
 		Log.error "Rpc ↚" "Request %s not handled" req.methodn;

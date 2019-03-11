@@ -24,8 +24,8 @@ end
 
 module type Stored_object = sig
   type t
-  val parse: string -> t option
-  val serialize: t -> string
+  val parse: ?hex:bool -> string -> t option
+  val serialize: ?hex:bool -> t -> string
 end
 
 module type Prefix = sig

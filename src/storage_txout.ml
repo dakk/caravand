@@ -17,8 +17,8 @@ type txout_t = {
 module Txout_index = Store.Make_index 
   (struct 
     type t = txout_t;;
-    let serialize o = "";;
-    let parse o = Some ({ height=0; blockhash=""; coinbase=false; txout={value=Int64.of_int 0; script= ([], 0)} });;
+    let serialize ?(hex=false) o = "";;
+    let parse ?(hex=false) o = Some ({ height=0; blockhash=""; coinbase=false; txout={value=Int64.of_int 0; script= ([], 0)} });;
   end)
   (struct let prefix = "txout" end)
 ;;

@@ -3,5 +3,4 @@
   (public_name caravand)
   (preprocess (pps bitstring.ppx))
   (libraries bitcoinml bitstring utils leveldb hex)
-  (modes byte)
 )

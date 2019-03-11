@@ -15,7 +15,7 @@ module Chainstate = struct
 		mutable prune_height	: uint32
 	};;
 
-	let serialize cs = 
+	let serialize ?(hex=false) cs = 
 		Bitstring.string_of_bitstring [%bitstring {|
 			Hash.to_bin cs.header         : 32*8 : string;
 			Uint32.to_int32 cs.header_height			: 32 : littleendian;
@@ -25,7 +25,7 @@ module Chainstate = struct
 		|}]
 	;;
 
-	let parse csb = 
+	let parse ?(hex=false) csb = 
 		let bdata = Bitstring.bitstring_of_string csb in
 		match%bitstring bdata with
 		| {|
