@@ -146,6 +146,10 @@ let step n bc =
 			match peer_of_addr n addr with
 			| None -> ()
 			| Some (p) -> Peer.send p @@ Message.HEADERS (hl))
+		| Chain.Request.RES_BLOCK (block, addr) -> (
+			match peer_of_addr n addr with
+			| None -> ()
+			| Some (p) -> Peer.send p @@ Message.BLOCK (block))
 		| Chain.Request.RES_TX (tx, addr) -> (
 			match peer_of_addr n addr with
 			| None -> ()

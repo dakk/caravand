@@ -15,6 +15,7 @@ module Resource : sig
 	| RES_INV_BLOCK of Hash.t * Unix.inet_addr
 	| REQ_HBLOCKS of Hash.t list * Hash.t * Unix.inet_addr
 	| REQ_TX of Hash.t * Unix.inet_addr
+	| REQ_BLOCK of Hash.t * Unix.inet_addr 
 end
 
 module Request : sig
@@ -26,6 +27,7 @@ module Request : sig
 	| RES_HBLOCKS of Block.Header.t list * Unix.inet_addr
 	| RES_INV_TX of Hash.t
 	| RES_TX of Tx.t * Unix.inet_addr
+	| RES_BLOCK of Block_lazy.t * Unix.inet_addr
 end	
 
 

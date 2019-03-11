@@ -116,25 +116,27 @@ let get_headers st hashes = Storage_blocks.get_headers st.block_store hashes;;
 let get_block_height st hash = Storage_blocks.get_block_height st.block_store hash;;
 let get_blocki st height = Storage_blocks.get_blocki st.block_store height;;
 let get_block st hash = Storage_blocks.get_block st.block_store hash;;
+let get_block_lazy st hash = Storage_blocks.get_block_lazy st.block_store hash;;
 let get_header st hash = Storage_blocks.get_header st.block_store hash;;
 let get_headeri st height = Storage_blocks.get_headeri st.block_store height;;
 
 
-let insert_header st height (header : Block.Header.t) = 
+let insert_header storage height (header : Block.Header.t) = 
 	let h = Uint32.of_int64 height in
-	Storage_blocks.insert_header st.block_store h header;
+	Storage_blocks.insert_header storage.block_store h header;
 	
-  st.chainstate.header <- header.hash;
-  st.chainstate.header_height <- h;
-  save st
+  storage.chainstate.header <- header.hash;
+  storage.chainstate.header_height <- h;
+  save storage;
+  sync storage
 ;;
 
-let remove_last_header st prevhash =
-	st.chainstate.header_height <- Uint32.pred st.chainstate.header_height;
-	st.chainstate.header <- prevhash;
-	Storage_blocks.remove_header st.block_store st.chainstate.header_height st.chainstate.header;
-  save st;
-	sync st
+let remove_last_header storage prevhash =
+	storage.chainstate.header_height <- Uint32.pred storage.chainstate.header_height;
+	storage.chainstate.header <- prevhash;
+	Storage_blocks.remove_header storage.block_store storage.chainstate.header_height storage.chainstate.header;
+  	save storage;
+	sync storage
 ;;
 
 let insert_block storage params height (block : Block.t) = 
@@ -150,7 +152,6 @@ let insert_block storage params height (block : Block.t) =
 				Log.debug "Storage" "Pruned block %d (%d txs) - %d blocks left to prune" (Uint32.to_int storage.chainstate.prune_height) (List.length block.txs) left;
 				storage.chainstate.prune_height <- Uint32.succ storage.chainstate.prune_height;
 				Storage_blocks.remove_block_data storage.block_store block;
-				sync storage;
 				prune_blocks storage xb)
 		| _ -> ()
 	in
@@ -164,8 +165,9 @@ let insert_block storage params height (block : Block.t) =
 	else
 		prune_blocks storage storage.config.cache_size;
   	
-	  Chainstate_index.set storage.state_store "" storage.chainstate;
+	Chainstate_index.set storage.state_store "" storage.chainstate;
 
+  	save storage;
 	sync storage
 ;;
 

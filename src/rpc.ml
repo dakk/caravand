@@ -51,7 +51,7 @@ module JSONRPC = struct
 
   let reply req result = 
 		let asstr = Yojson.Safe.to_string result in
-		Log.info "Rpc →" "%s" @@ if String.length asstr > 48 then String.sub asstr 0 48 else asstr;
+		Log.debug "Rpc →" "%s" @@ if String.length asstr > 64 then String.sub asstr 0 64 else asstr;
 		`Assoc [
 			("jsonrpc", `String "2.0");
 			("result", result);
@@ -92,11 +92,10 @@ end
 let handle_request bc net req = 
 	let reply = JSONRPC.reply req in
 	let reply_err = JSONRPC.reply_err req in
-	let notavailable () = reply_err (-32) "Method not found." in
 	let nosync () = reply_err (-28) "Synching..." in
-	let notfound () = reply_err (-28) "Resource not present." in
+	let generror () = reply_err (-28) "Generic error" in
 
-	Log.info "Rpc ←" "%s %s" req.methodn (Yojson.Basic.to_string (`List req.params));
+	Log.debug "Rpc ←" "%s %s" req.methodn (Yojson.Basic.to_string (`List req.params));
 	match (req.methodn, req.params, bc.sync_headers) with
 	| "echo", [`String hdata], _ -> reply @@ `String hdata
 	| "echo", [], _ -> reply @@ `String "Hello from caravand"
@@ -104,22 +103,22 @@ let handle_request bc net req =
 	| "estimatesmartfee", [`Int target; `String mode], true -> (
 		reply @@ `Assoc [
 			("blocks", `Int target);
-			("feerate", `Float 0.000003)
+			("feerate", `Float 0.00013008)
 		]
 	)
-	| "gettxout", [`String txid; `Int n], _ -> (
+	(*| "gettxout", [`String txid; `Int n], _ -> (
 		notavailable ()
-	)
+	)*)
 	| "sendrawtransaction", [`String hex], _ -> (
 		match Tx.parse hex with
 		| _, Some (tx) ->
 			Chain.broadcast_tx bc tx;
 			reply (`String tx.hash)
-		| _, _ -> notfound ()
+		| _, _ -> generror ()
 	)
 	| "getblockhash", [`Int height], _ -> (
 		match Storage.get_blocki bc.storage @@ Int64.of_int height with 
-		| None -> notfound ()
+		| None -> reply_err (-8) "Block height out of range"
 		| Some (b) -> reply (`String b.header.hash)
 	)
 	| "getblockcount", [], true -> reply (`Int (Int64.to_int bc.block_height))
@@ -128,13 +127,13 @@ let handle_request bc net req =
 	| "getblock", [`String b; `Bool false], _
 	| "getblock", [`String b; `Int 0], _ -> (
 		match Storage.get_block bc.storage b with
-		| None -> notfound ()
+		| None -> reply_err (-5) "Block not found"
 		| Some (b) -> match Block.serialize b |> Hex.of_string with
 		| `Hex h -> reply (`String h)
 	)
 	| _ -> 
 		Log.error "Rpc ↚" "Request %s not handled" req.methodn;
-		notavailable ()
+		reply_err (-32601) "Method not found"
 ;;
 
 type t = {

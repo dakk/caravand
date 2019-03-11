@@ -46,7 +46,7 @@ let remove mp txhash =
 let get mp txhash = Hashtbl.find mp.txs txhash;;
 
 let print_stats mp = 
-  Log.debug "Mempool" "Size: %s, Txs: %d, Fees: %d" (byten_to_string mp.size) (Hashtbl.length mp.txs) (Int64.to_int @@ fees mp);
+  Log.info "Mempool" "Size: %s, Txs: %d, Fees: %d" (byten_to_string mp.size) (Hashtbl.length mp.txs) (Int64.to_int @@ fees mp);
 ;;
 
 let remove_txs mp txs = List.iter (fun tx -> remove mp tx.hash) txs;;

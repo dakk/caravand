@@ -43,6 +43,7 @@ val remove_last_block 	: t -> Params.t -> Hash.t -> unit
 
 val get_blocki        	: t -> Int64.t -> Block.t option
 val get_block         	: t -> Hash.t -> Block.t option
+val get_block_lazy     	: t -> Hash.t -> Block_lazy.t option
 val get_block_height	: t -> Hash.t -> int
 val get_header			: t -> Hash.t -> Block.Header.t option
 val get_headeri			: t -> Int64.t -> Block.Header.t option

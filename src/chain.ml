@@ -20,6 +20,7 @@ module Resource = struct
 	| RES_INV_BLOCK of Hash.t * Unix.inet_addr
 	| REQ_HBLOCKS of Hash.t list * Hash.t * Unix.inet_addr
 	| REQ_TX of Hash.t * Unix.inet_addr
+	| REQ_BLOCK of Hash.t * Unix.inet_addr 
 	;;
 end
 
@@ -32,6 +33,7 @@ module Request = struct
 	| RES_HBLOCKS of Block.Header.t list * Unix.inet_addr
 	| RES_INV_TX of Hash.t
 	| RES_TX of Tx.t * Unix.inet_addr
+	| RES_BLOCK of Block_lazy.t * Unix.inet_addr
 	;;
 end	
 
@@ -103,13 +105,13 @@ let genesis path config p =
 			size= 1;
 			txs	= [];
 			header= {
-				hash				= Hash.zero;
-				time				= 0.0;
-				version			= Int32.zero;
+				hash		= Hash.zero;
+				time		= 0.0;
+				version		= Int32.zero;
 				prev_block	= Hash.zero;
 				merkle_root	= Hash.zero;
-				bits				= "ffffff";
-				nonce				= Uint32.zero
+				bits		= "ffffff";
+				nonce		= Uint32.zero
 			}
 		};
 		block_last_received = Unix.time () -. 10000.0;
@@ -134,8 +136,8 @@ let load path config p =
 	let bcg = genesis path config p in
 	bcg.branches <- [];
 		
-	let header_last = Storage.get_header bcg.storage bcg.storage.chainstate.Chainstate.header in
 	let block_last = Storage.get_block bcg.storage bcg.storage.chainstate.Chainstate.block in
+	let header_last = Storage.get_header bcg.storage bcg.storage.chainstate.Chainstate.header in
 
 	match (header_last, bcg.storage.chainstate.Chainstate.header_height, block_last, bcg.storage.chainstate.Chainstate.block_height) with
 	| (None, hh, b, bh) -> res bcg
@@ -148,6 +150,14 @@ let load path config p =
 		bcg.header_height <- Uint32.to_int64 hh;
 		bcg.block_last <- b;
 		bcg.block_height <- Uint32.to_int64 bh;
+
+
+		if bcg.storage.chainstate.Chainstate.header <> h.hash then (
+			Log.error "Blockchain" "This is an hotfix for a bug we need to inspect";
+			bcg.header_last <- b.header;
+			()
+		);
+		
 		res bcg
 ;;
 
@@ -209,7 +219,7 @@ let broadcast_tx bc tx =
 
 
 let step bc = 
-	let sync_log () = if bc.last_sync_log < Unix.time () -. 60. then (
+	let sync_log () = if bc.last_sync_log < Unix.time () -. 30. then (
 		bc.last_sync_log <- Unix.time ();
 
 		if bc.sync_headers then 
@@ -219,11 +229,12 @@ let step bc =
 		else
 			Log.debug "Blockchain" "Headers not in sync: %s behind" @@ Timediff.diffstring (Unix.time ()) bc.header_last.time;
 
-		if bc.sync then
+		if bc.sync then (
 			Log.info "Blockchain" "Blocks in sync: last block is %s ago, %d total blocks" 
 				(Timediff.diffstring (Unix.time ()) bc.block_last.header.time ~munit:"minutes")
-				(bc.block_height |> Int64.to_int)
-		else if bc.block_last.header.time = 0.0 then 
+				(bc.block_height |> Int64.to_int);
+			Mempool.print_stats bc.mempool
+		) else if bc.block_last.header.time = 0.0 then 
 			Log.debug "Blockchain" "Blocks not in sync, waiting for blocks"
 		else
 			Log.info "Blockchain" "Blocks not in sync: %s behind (%d blocks)" 
@@ -273,10 +284,10 @@ let step bc =
 				bc.blocks_requested <- bc.blocks_requested - 1;
 				bc.block_height <- Int64.succ bc.block_height;
 				bc.block_last <- b;
-				let a = Unix.time () in
+				let tstart = Unix.time () in
 				Storage.insert_block bc.storage bc.params bc.block_height b;
 				Log.debug "Blockchain ←" "Block %d processed in %d seconds (%d transactions, %d KB)" (Int64.to_int bc.block_height) 
-					(int_of_float ((Unix.time ()) -. a)) (List.length b.txs) (b.size / 1024);
+					(int_of_float ((Unix.time ()) -. tstart)) (List.length b.txs) (b.size / 1024);
 				bc.block_last_received <- Unix.time ();
 				Mempool.remove_txs bc.mempool b.txs;
 
@@ -291,20 +302,16 @@ let step bc =
 			if verify_block_header bc.params bc.header_height bc.header_last blazy.header then (
 				bc.header_last <- blazy.header;
 				bc.header_height <- Int64.succ bc.header_height;
+				Storage.insert_header bc.storage bc.header_height bc.header_last;
 
 				match Block_lazy.force blazy with
 				| Some (b) ->
-					if verify_block_header bc.params bc.block_height bc.block_last.header b.header then (
-						bc.block_height <- Int64.succ bc.block_height;
-						bc.block_last <- b;
-						Storage.insert_block bc.storage bc.params bc.block_height b;
-						Mempool.remove_txs bc.mempool b.txs;
-						bc.block_last_received <- Unix.time ();
-						Log.debug "Blockchain ←" "Block %s - %d, time: %s ago" block.header.hash (Int64.to_int bc.block_height) @@ Timediff.diffstring (Unix.time ()) block.header.time ~munit:"weeks"
-					) else (
-						Storage.insert_header bc.storage bc.header_height bc.header_last;
-						Log.debug "Blockchain ←" "Block %s - %d, time: %s ago" block.header.hash (Int64.to_int bc.block_height) @@ Timediff.diffstring (Unix.time ()) block.header.time ~munit:"weeks"
-					)
+					bc.block_height <- Int64.succ bc.block_height;
+					bc.block_last <- b;
+					Storage.insert_block bc.storage bc.params bc.block_height b;
+					bc.block_last_received <- Unix.time ();
+					Mempool.remove_txs bc.mempool b.txs;
+					Log.debug "Blockchain ←" "Block %s - %d, time: %s ago" block.header.hash (Int64.to_int bc.block_height) @@ Timediff.diffstring (Unix.time ()) block.header.time ~munit:"weeks"
 				| None -> ()
 			) else (
 				Log.warn "Blockchain" "Block header validation failed: %s" blazy.header.hash
@@ -330,6 +337,10 @@ let step bc =
 		
 		(* Handle new resources *)
 		Cqueue.iter bc.resources (fun res -> match (res : Resource.t) with 
+		| REQ_BLOCK (hash, addr) -> (match Storage.get_block_lazy bc.storage hash with
+			| Some (b) -> bc.requests << Request.RES_BLOCK (b, addr)
+			| None -> ()
+		)
 		| REQ_TX (txhash, addr) ->
 			(if Mempool.has bc.mempool txhash then bc.requests << Request.RES_TX (Mempool.get bc.mempool txhash, addr))
 		| REQ_HBLOCKS (hl, stop, addr) ->
@@ -372,7 +383,7 @@ let step bc =
 		if bc.header_last.time < (Unix.time () -. 60. *. 60.) then (
 			bc.sync_headers <- false;
 
-			if bc.header_last_received < (Unix.time () -. 30.) then (
+			if bc.header_last_received < (Unix.time () -. 10.) then (
 				bc.requests << Request.REQ_HBLOCKS ([bc.header_last.hash], None);
 			)
 		) else (
@@ -391,7 +402,6 @@ let step bc =
 			| None -> ()
 		)
 		| _, true -> (
-			(*if bc.block_last.header.time < (Unix.time () -. 60. *. 10.) then ( *)
 			if bc.block_last.header.hash <> bc.header_last.hash then (
 				bc.sync <- false;
 
@@ -406,8 +416,8 @@ let step bc =
 					| Some (bh) -> getblockhashes succ (n-1) (bh.hash::acc)
 				in 
 				if bc.block_last_received < (Unix.time () -. 5.) && bc.blocks_requested > 0 || bc.blocks_requested = 0 then (
-					let hashes = getblockhashes (bc.block_height) 32 [] in
-					bc.blocks_requested <- 32;
+					let hashes = getblockhashes (bc.block_height) 128 [] in
+					bc.blocks_requested <- 128;
 					bc.requests << Request.REQ_BLOCKS (hashes, None))
 			) else (
 				bc.sync <- true

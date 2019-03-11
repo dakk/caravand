@@ -195,12 +195,12 @@ let handle peer bc = match recv peer with
 		bc.resources << Chain.Resource.REQ_HBLOCKS (hl.hashes, hl.stop, peer.address)
 	| INV (i) ->
 		let rec vis h = match h with
-		| x::xl ->
-			let _ = (match x with
-				| INV_TX (txid) -> bc.resources << Chain.Resource.RES_INV_TX (txid, peer.address);
-				| INV_BLOCK (bhash) -> bc.resources << Chain.Resource.RES_INV_BLOCK (bhash, peer.address);
-				| _ -> ()
-			) in vis xl  
+		| x::xl -> (match x with
+			| INV_TX (txid) -> bc.resources << Chain.Resource.RES_INV_TX (txid, peer.address);
+			| INV_BLOCK (bhash) -> bc.resources << Chain.Resource.RES_INV_BLOCK (bhash, peer.address);
+			| _ -> ()
+			);
+			vis xl  
 		| [] -> ()
 		in vis i
 	| TX (tx) -> bc.resources << Chain.Resource.RES_TX (tx)
@@ -209,6 +209,14 @@ let handle peer bc = match recv peer with
 	| VERACK -> ()
 	| FEEFILTER (rate) -> peer.fee_rate <- rate
 	| SENDHEADERS -> peer.send_headers <- true
+	| GETDATA (ilist) -> 
+		let rec hilist il = match il with
+		| x::xl -> (match x with
+			| INV_TX (txid) -> bc.resources << Chain.Resource.REQ_TX (txid, peer.address)
+			| INV_BLOCK (hash) -> bc.resources << Chain.Resource.REQ_BLOCK (hash, peer.address)
+		)
+		| [] -> ()
+		in hilist ilist
 	| m -> Log.debug "Network" "Message not handled %s" @@ Message.string_of_command m; ()
 );;
 

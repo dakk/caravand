@@ -11,6 +11,19 @@ module Block_index = Store.Make_index
   (struct let prefix = "bk" end)
 ;;
 
+module Block_lazy_index = Store.Make_index 
+  (struct 
+    type t = Block_lazy.t;;
+    let serialize b = match Block_lazy.force b with 
+    | Some (b) -> Block.serialize b
+    | None -> ""
+    ;;
+
+    let parse = Block_lazy.parse;; 
+  end)
+  (struct let prefix = "bk" end)
+;;
+
 module Block_header_index = Store.Make_index 
   (Block.Header)
   (struct let prefix = "bk" end)
@@ -64,6 +77,7 @@ let get_block_height block_store hash =
 ;;
 
 let get_block block_store hash = Block_index.get block_store @@ Hash.to_bin_norev hash;;
+let get_block_lazy block_store hash = Block_lazy_index.get block_store @@ Hash.to_bin_norev hash;;
 
 let get_blocki block_store height = 
   match Block_height_index.get block_store @@ Printf.sprintf "%d" (Int64.to_int height) with
