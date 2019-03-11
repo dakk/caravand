@@ -209,27 +209,25 @@ let broadcast_tx bc tx =
 
 
 let step bc = 
-	let sync_log () = 
-		if bc.last_sync_log < Unix.time () -. 60. then (
-			bc.last_sync_log <- Unix.time ();
+	let sync_log () = if bc.last_sync_log < Unix.time () -. 60. then (
+		bc.last_sync_log <- Unix.time ();
 
-			if bc.sync_headers then 
-				Log.debug "Blockchain" "Headers in sync: last block is %s ago, %d total blocks" 
-					(Timediff.diffstring (Unix.time ()) bc.header_last.time ~munit:"minutes")
-					(bc.block_height |> Int64.to_int)
-			else
-				Log.debug "Blockchain" "Headers not in sync: %s behind" @@ Timediff.diffstring (Unix.time ()) bc.header_last.time;
+		if bc.sync_headers then 
+			Log.debug "Blockchain" "Headers in sync: last block is %s ago, %d total blocks" 
+				(Timediff.diffstring (Unix.time ()) bc.header_last.time ~munit:"minutes")
+				(bc.block_height |> Int64.to_int)
+		else
+			Log.debug "Blockchain" "Headers not in sync: %s behind" @@ Timediff.diffstring (Unix.time ()) bc.header_last.time;
 
-			if bc.sync then
-				Log.info "Blockchain" "Blocks in sync: last block is %s ago, %d total blocks" 
-					(Timediff.diffstring (Unix.time ()) bc.block_last.header.time ~munit:"minutes")
-					(bc.block_height |> Int64.to_int)
-			else
-				Log.info "Blockchain" "Blocks not in sync: %s behind (%d blocks)" 
-					(Timediff.diffstring (Unix.time ()) bc.block_last.header.time)
-					(Int64.sub bc.header_height bc.block_height |> Int64.to_int)
-		)
-	in
+		if bc.sync then
+			Log.info "Blockchain" "Blocks in sync: last block is %s ago, %d total blocks" 
+				(Timediff.diffstring (Unix.time ()) bc.block_last.header.time ~munit:"minutes")
+				(bc.block_height |> Int64.to_int)
+		else
+			Log.info "Blockchain" "Blocks not in sync: %s behind (%d blocks)" 
+				(Timediff.diffstring (Unix.time ()) bc.block_last.header.time)
+				(Int64.sub bc.header_height bc.block_height |> Int64.to_int)
+	) in
 	let check_branch_updates h = match (Branch.find_parent bc.branches h, Branch.find_fork bc.branches h) with
 	| (Some (br), _) -> (* Insert into a branch (if present) *)
 		Log.info "Blockchain ←" "Branch %s updated with new block: %s" br.fork_hash h.hash;
@@ -407,8 +405,8 @@ let step bc =
 					| Some (bh) -> getblockhashes succ (n-1) (bh.hash::acc)
 				in 
 				if bc.block_last_received < (Unix.time () -. 5.) && bc.blocks_requested > 0 || bc.blocks_requested = 0 then (
-					let hashes = getblockhashes (bc.block_height) 16 [] in
-					bc.blocks_requested <- 16;
+					let hashes = getblockhashes (bc.block_height) 32 [] in
+					bc.blocks_requested <- 32;
 					bc.requests << Request.REQ_BLOCKS (hashes, None))
 			) else (
 				bc.sync <- true
@@ -484,6 +482,10 @@ let rec loop bc =
 		Storage.sync bc.storage;
 		Storage.close bc.storage
 	)
+;;
+
+let shutdown_pre bc = 
+	bc.run <- false
 ;;
 
 

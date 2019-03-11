@@ -73,6 +73,7 @@ val load			: string -> Config.t -> Params.t -> t
 val loop			: t -> unit
 val step			: t -> unit
 val shutdown 	: t -> unit
+val shutdown_pre : t -> unit
 
 val verify_block_header : Params.t -> Int64.t -> Block.Header.t -> Block.Header.t -> bool
 val broadcast_tx : t -> Tx.t -> unit
