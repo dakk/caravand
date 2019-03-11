@@ -45,6 +45,7 @@ type t = {
 	(* Sync status *)
 	mutable sync_headers	:	bool;
 	mutable sync			:	bool;
+	mutable last_sync_log	: 	float;
 
 	(* Branches *)
 	mutable branches			: Branch.t list;
@@ -89,6 +90,7 @@ let genesis path config p =
 		storage				= Storage.load path config;
 		sync_headers	= false;
 		sync					= false;
+		last_sync_log 	= Unix.time () -. 10000.0;
 
 		branches = [];
 		
@@ -207,6 +209,27 @@ let broadcast_tx bc tx =
 
 
 let step bc = 
+	let sync_log () = 
+		if bc.last_sync_log < Unix.time () -. 60. then (
+			bc.last_sync_log <- Unix.time ();
+
+			if bc.sync_headers then 
+				Log.debug "Blockchain" "Headers in sync: last block is %s ago, %d total blocks" 
+					(Timediff.diffstring (Unix.time ()) bc.header_last.time ~munit:"minutes")
+					(bc.block_height |> Int64.to_int)
+			else
+				Log.debug "Blockchain" "Headers not in sync: %s behind" @@ Timediff.diffstring (Unix.time ()) bc.header_last.time;
+
+			if bc.sync then
+				Log.info "Blockchain" "Blocks in sync: last block is %s ago, %d total blocks" 
+					(Timediff.diffstring (Unix.time ()) bc.block_last.header.time ~munit:"minutes")
+					(bc.block_height |> Int64.to_int)
+			else
+				Log.info "Blockchain" "Blocks not in sync: %s behind (%d blocks)" 
+					(Timediff.diffstring (Unix.time ()) bc.block_last.header.time)
+					(Int64.sub bc.header_height bc.block_height |> Int64.to_int)
+		)
+	in
 	let check_branch_updates h = match (Branch.find_parent bc.branches h, Branch.find_fork bc.branches h) with
 	| (Some (br), _) -> (* Insert into a branch (if present) *)
 		Log.info "Blockchain ←" "Branch %s updated with new block: %s" br.fork_hash h.hash;
@@ -347,18 +370,16 @@ let step bc =
 
 		(* Check sync status *)
 		if bc.header_last.time < (Unix.time () -. 60. *. 60.) then (
-			Log.debug "Blockchain" "Headers not in sync: %s behind" @@ Timediff.diffstring (Unix.time ()) bc.header_last.time;
 			bc.sync_headers <- false;
 
-			if bc.header_last_received < (Unix.time () -. 60. *. 10.) then 
+			if bc.header_last_received < (Unix.time () -. 30.) then (
 				bc.requests << Request.REQ_HBLOCKS ([bc.header_last.hash], None);
+			)
 		) else (
-			if bc.header_last.time < (Unix.time () -. 60. *. 10.) ||  bc.header_last_received < (Unix.time () -. 60. *. 60.) then 
-				bc.requests << Request.REQ_HBLOCKS ([bc.header_last.hash], None);
-				
-			Log.debug "Blockchain" "Headers in sync: last block is %s ago, %d total blocks" 
-				(Timediff.diffstring (Unix.time ()) bc.header_last.time ~munit:"minutes")
-				(bc.block_height |> Int64.to_int);
+			if bc.header_last.time < (Unix.time () -. 60. *. 10.) ||  bc.header_last_received < (Unix.time () -. 60. *. 60.) then (
+				bc.requests << Request.REQ_HBLOCKS ([bc.header_last.hash], None)
+			);
+
 			bc.sync_headers <- true
 		);
 
@@ -373,9 +394,6 @@ let step bc =
 		| _, true -> (
 			(*if bc.block_last.header.time < (Unix.time () -. 60. *. 10.) then ( *)
 			if bc.block_last.header.hash <> bc.header_last.hash then (
-				Log.info "Blockchain" "Blocks not in sync: %s behind (%d blocks)" 
-					(Timediff.diffstring (Unix.time ()) bc.block_last.header.time)
-					(Int64.sub bc.header_height bc.block_height |> Int64.to_int);
 				bc.sync <- false;
 
 				(* Ask the storage for next n blocks hashes *)
@@ -389,13 +407,10 @@ let step bc =
 					| Some (bh) -> getblockhashes succ (n-1) (bh.hash::acc)
 				in 
 				if bc.block_last_received < (Unix.time () -. 5.) && bc.blocks_requested > 0 || bc.blocks_requested = 0 then (
-					let hashes = getblockhashes (bc.block_height) 500 [] in
-					bc.blocks_requested <- 500;
+					let hashes = getblockhashes (bc.block_height) 16 [] in
+					bc.blocks_requested <- 16;
 					bc.requests << Request.REQ_BLOCKS (hashes, None))
 			) else (
-				Log.info "Blockchain" "Blocks in sync: last block is %s ago, %d total blocks" 
-					(Timediff.diffstring (Unix.time ()) bc.block_last.header.time ~munit:"minutes")
-					(bc.block_height |> Int64.to_int);
 				bc.sync <- true
 			)
 		)
@@ -456,7 +471,7 @@ let step bc =
 				(Int64.to_int @@ Int64.sub bc.header_height b.Branch.header_height); 
 		) bc.branches;
 		Mempool.print_stats bc.mempool;	*)
-		()
+		sync_log ()
 ;;
 
 

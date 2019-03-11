@@ -29,7 +29,7 @@ let add q e =
 		q.qlast <- Unix.time ();
 		Mutex.unlock q.qlock;
 	) else (
-		Printf.printf "dropping\n%!";
+		(*Printf.printf "dropping\n%!";*)
 	)
 ;;
 

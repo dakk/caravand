@@ -39,6 +39,7 @@ type t = {
 	(* Sync status *)
 	mutable sync_headers	:	bool;
 	mutable sync					:	bool;
+	mutable last_sync_log	: 	float;
 
 	(* Branches *)
 	mutable branches			: Branch.t list;
