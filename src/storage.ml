@@ -143,7 +143,8 @@ let insert_block storage params height (block : Block.t) =
 	let rec prune_blocks storage xb = 
 		match (Uint32.to_int storage.chainstate.block_height) - xb with
 		| x' when x' > Uint32.to_int storage.chainstate.prune_height -> (
-			match get_blocki storage (Int64.of_uint32 storage.chainstate.prune_height) with
+			let blprune = try get_blocki storage (Int64.of_uint32 storage.chainstate.prune_height) with | _ -> None in
+			match blprune with
 			| None -> 
 				storage.chainstate.prune_height <- Uint32.succ storage.chainstate.prune_height;
 				prune_blocks storage xb

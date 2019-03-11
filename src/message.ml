@@ -239,7 +239,7 @@ let parse_version data =
 				start_height= start_height;
 				relay= false
 			}
-			)
+		)
 ;;
 
 let parse_ping data =

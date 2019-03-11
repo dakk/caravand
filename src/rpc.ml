@@ -15,11 +15,11 @@ open Yojson.Basic.Util;;
 
 let send socket str = 
 	let rec send_inner estr = match Bytes.length estr with
-	| 0 -> 0
 	| l when l <= 65536 -> send socket estr 0 l []
 	| l when l > 65536 ->
-		send socket (Bytes.sub estr 0 65536) 0 65536 [];
+		send socket (Bytes.sub estr 0 65536) 0 65536 [] |> ignore;
 		65536 + send_inner (Bytes.sub estr 65536 @@ l - 65536)
+	| _ -> 0
 	in
 	let data = Bytes.of_string ("HTTP/1.1 200 OK\nContent-type: application/json-rpc\n\n" ^ str) in
   send_inner data
@@ -51,17 +51,17 @@ module JSONRPC = struct
 
   let reply req result = 
 		let asstr = Yojson.Safe.to_string result in
-		Log.debug "Rpc →" "%s" @@ if String.length asstr > 64 then String.sub asstr 0 64 else asstr;
+		Log.debug "Rpc ↔" "%s %s → %s" req.methodn (Yojson.Basic.to_string (`List req.params)) @@ if String.length asstr > 64 then String.sub asstr 0 64 else asstr;
 		`Assoc [
 			("jsonrpc", `String "2.0");
 			("result", result);
 			("id", `Int req.id)
-		] |> Yojson.Safe.to_string |> send req.socket;
+		] |> Yojson.Safe.to_string |> send req.socket |> ignore;
 		close req.socket
   ;;
 
   let reply_err req code message = 
-		Log.error "Rpc →" "%d - %s" code message;
+		Log.error "Rpc ↔" "%s %s → %d %s" req.methodn (Yojson.Basic.to_string (`List req.params)) code message;
 		`Assoc [
 			("id", `Int req.id);
 			("error", `Assoc [
@@ -69,7 +69,7 @@ module JSONRPC = struct
 				("message", `String message);
 			]);
 			("jsonrpc", `String "2.0")
-		] |> Yojson.Safe.to_string |> send req.socket;
+		] |> Yojson.Safe.to_string |> send req.socket |> ignore;
 		close req.socket
   ;;
 
@@ -95,7 +95,6 @@ let handle_request bc net req =
 	let nosync () = reply_err (-28) "Synching..." in
 	let generror () = reply_err (-28) "Generic error" in
 
-	Log.debug "Rpc ←" "%s %s" req.methodn (Yojson.Basic.to_string (`List req.params));
 	match (req.methodn, req.params, bc.sync_headers) with
 	| "echo", [`String hdata], _ -> reply @@ `String hdata
 	| "echo", [], _ -> reply @@ `String "Hello from caravand"
