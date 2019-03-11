@@ -16,7 +16,8 @@ let main () =
 			(*Unix.sleep 1*)
 		) done;
 		Chain.shutdown bc;
-		Net.shutdown n
+		Net.shutdown n;
+		Log.info Constants.name "Exit."
 	in
 	Random.self_init ();
 	Log.info Constants.name "Starting %s" Constants.version;
@@ -51,7 +52,6 @@ let main () =
 			(* Thread.join rpc_thread; *)
 			(*Thread.join net_thread;
 			Thread.join chain_thread;*)
-			Log.info Constants.name "Exit.";
 		) in
 		Sys.set_signal Sys.sigint @@ Signal_handle (sighandler);
 		

@@ -223,6 +223,8 @@ let step bc =
 			Log.info "Blockchain" "Blocks in sync: last block is %s ago, %d total blocks" 
 				(Timediff.diffstring (Unix.time ()) bc.block_last.header.time ~munit:"minutes")
 				(bc.block_height |> Int64.to_int)
+		else if bc.block_last.header.time = 0.0 then 
+			Log.debug "Blockchain" "Blocks not in sync, waiting for blocks"
 		else
 			Log.info "Blockchain" "Blocks not in sync: %s behind (%d blocks)" 
 				(Timediff.diffstring (Unix.time ()) bc.block_last.header.time)
@@ -383,7 +385,6 @@ let step bc =
 
 		(match bc.block_last.header.time, bc.sync_headers with
 		| 0.0, true -> (
-			Log.debug "Blockchain" "Blocks not in sync, waiting for blocks";
 			bc.sync <- false;
 			match Storage.get_headeri bc.storage (Int64.sub bc.header_height (Int64.of_int bc.config.cache_size)) with
 			| Some (bh) -> bc.requests << Request.REQ_BLOCKS ([bh.hash], None)
