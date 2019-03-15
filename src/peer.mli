@@ -1,4 +1,3 @@
-open Message
 open Utils
 open Bitcoinml
 open Stdint
@@ -29,8 +28,8 @@ type t = {
 
 val create		: Params.t -> Config.t -> Unix.inet_addr -> int -> t
 val connect 	: t -> status
-val send		: t -> Message.t -> unit
-val recv		: t -> Message.t option
+val send		: t -> Proto.t -> unit
+val recv		: t -> Proto.t option
 val handshake	: t -> Int64.t -> unit
 val disconnect	: t -> unit
 val start		: t -> Chain.t -> unit

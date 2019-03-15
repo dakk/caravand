@@ -2,8 +2,8 @@ open Bitcoinml;;
 open Utils;;
 open Conv;;
 open Dns;;
+open Proto;;
 open Peer;;
-open Message;;
 open Params;;
 
 type t = {
@@ -140,32 +140,32 @@ let step n bc =
 	if available_peers n <> 0 then
 		Cqueue.iter bc.requests (fun req -> match req with
 		| Chain.Request.RES_INV_TX (txh) -> 
-			let msg = Message.INV [ (Message.INV_TX txh) ] in
+			let msg = Proto.INV [ (Proto.INV_TX txh) ] in
 			Hashtbl.iter (fun k p -> Peer.send p msg) n.peers
 		| Chain.Request.RES_HBLOCKS (hl, addr) -> (
 			match peer_of_addr n addr with
 			| None -> ()
-			| Some (p) -> Peer.send p @@ Message.HEADERS (hl))
+			| Some (p) -> Peer.send p @@ Proto.HEADERS (hl))
 		| Chain.Request.RES_BLOCK (block, addr) -> (
 			match peer_of_addr n addr with
 			| None -> ()
-			| Some (p) -> Peer.send p @@ Message.BLOCK (block))
+			| Some (p) -> Peer.send p @@ Proto.BLOCK (block))
 		| Chain.Request.RES_TX (tx, addr) -> (
 			match peer_of_addr n addr with
 			| None -> ()
-			| Some (p) -> Peer.send p @@ Message.TX (tx))
+			| Some (p) -> Peer.send p @@ Proto.TX (tx))
 		| Chain.Request.REQ_HBLOCKS (h, addr)	->
 			let msg = { version= Int32.of_int 1; hashes= h; stop= Hash.zero; } in 
-			send n @@ Message.GETHEADERS (msg)
+			send n @@ Proto.GETHEADERS (msg)
 		| Chain.Request.REQ_TX (txh, Some (addr)) -> (
 			match peer_of_addr n addr with
 			| None -> ()
-			| Some (p) -> Peer.send p @@ Message.GETDATA ([INV_TX (txh)]))
+			| Some (p) -> Peer.send p @@ Proto.GETDATA ([INV_TX (txh)]))
 		| Chain.Request.REQ_BLOCKS (hs, addr)	->
 			let rec create_invs hs acc = match hs with
 			| [] -> acc
 			| h::hs' -> create_invs hs' ((INV_BLOCK (h)) :: acc)
-			in send n @@ Message.GETDATA (create_invs hs []);
+			in send n @@ Proto.GETDATA (create_invs hs []);
 		| _ -> ()) |> ignore
 ;;
 

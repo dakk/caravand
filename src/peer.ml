@@ -2,11 +2,11 @@ open Stdint;;
 open Unix;;
 open Utils;;
 open Conv;;
-open Message;;
 open Chain;;
 open Random;;
 open Cqueue;;
 open Bitcoinml;;
+open Proto;;
 
 type status = 
 	| CONNECTED
@@ -83,7 +83,7 @@ let disconnect peer =
 ;;
 
 let send peer message = 
-	let data = Message.serialize peer.params message in
+	let data = Proto.serialize peer.params message in
 	let _, wd, _ = Unix.select [] [peer.socket] [] 5.0 in
 	match List.length wd with
 	| 0 -> (
@@ -93,7 +93,7 @@ let send peer message =
 		try (
 			let wl = Unix.send peer.socket (Bytes.of_string data) 0 (String.length data) [] in
 			Log.debug2 "Peer →" "%s: %s (s: %s, r: %s)" (Unix.string_of_inet_addr peer.address) 
-				(string_of_command message) (byten_to_string peer.sent) (byten_to_string peer.received);
+				(Proto.string_of_command message) (byten_to_string peer.sent) (byten_to_string peer.received);
 			peer.sent <- peer.sent + wl
 		) with
 		| _ -> Log.error "Peer →" "Broken pipe"; disconnect peer
@@ -131,7 +131,7 @@ let recv peer =
 		| rl when rl < 0 -> disconnect peer; None
 		| rl when rl = 0 ->	None
 		| rl when rl > 0 -> (
-			let m = Message.parse_header (data |> Bytes.to_string) in
+			let m = Proto.parse_header (data |> Bytes.to_string) in
 						
 			(* Read and parse the message*)
 			peer.received <- peer.received + 24;
@@ -140,7 +140,7 @@ let recv peer =
 				| None -> None
 				| Some (rdata) -> (
 					peer.received <- peer.received + String.length rdata;
-					let m' = Message.parse m rdata in 
+					let m' = Proto.parse m rdata in 
 					Log.debug2 "Peer ←" "%s: %s (s: %s, r: %s)" (Unix.string_of_inet_addr peer.address) 
 							m.command (byten_to_string peer.sent) (byten_to_string peer.received);
 					
@@ -167,7 +167,7 @@ let handshake peer height =
 		user_agent	= "/" ^ Constants.name ^ ":" ^ Constants.version_btc ^ "/";
 		start_height= Int32.of_int64 height;
 		relay		= true;
-	} in send peer (Message.VERSION (verm))
+	} in send peer (Proto.VERSION (verm))
 ;;
 
 
@@ -217,7 +217,7 @@ let handle peer bc = match recv peer with
 		)
 		| [] -> ()
 		in hilist ilist
-	| m -> Log.debug "Network" "Message not handled %s" @@ Message.string_of_command m; ()
+	| m -> Log.debug "Network" "Message not handled %s" @@ Proto.string_of_command m; ()
 );;
 
 let start peer bc = 
