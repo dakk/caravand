@@ -22,34 +22,34 @@ let send socket str =
 	| _ -> 0
 	in
 	let data = Bytes.of_string ("HTTP/1.1 200 OK\nContent-type: application/json-rpc\n\n" ^ str) in
-  send_inner data
+	send_inner data
 ;;
 
 let recv socket = 
-  let data_raw = Bytes.create 4096 in
+	let data_raw = Bytes.create 4096 in
 	let reqlen = Unix.recv socket data_raw 0 4096 [] in
-  String.sub (data_raw |> Bytes.to_string) 0 reqlen
+	String.sub (data_raw |> Bytes.to_string) 0 reqlen
 ;;
 
 
 let shutdown socket =
-  try ( Unix.shutdown socket Unix.SHUTDOWN_ALL ) with | _ -> ();
+	try ( Unix.shutdown socket Unix.SHUTDOWN_ALL ) with | _ -> ();
 ;;
 
 let listen socket port ns =
-  bind socket (ADDR_INET (inet_addr_of_string "0.0.0.0", port));
-  listen socket ns
+	bind socket (ADDR_INET (inet_addr_of_string "0.0.0.0", port));
+	listen socket ns
 ;;
 
 module JSONRPC = struct
-  type req = {
-    methodn : string;
-    params  : Yojson.Basic.t list;
-    id      : int;
-		socket 	: Unix.file_descr;
-  };;
+	type req = {
+		methodn: string;
+		params: Yojson.Basic.t list;
+		id: int;
+		socket: Unix.file_descr;
+	};;
 
-  let reply req result = 
+	let reply req result =
 		let asstr = Yojson.Safe.to_string result in
 		Log.debug "Rpc ↔" "%s %s → %s" req.methodn (Yojson.Basic.to_string (`List req.params)) @@ if String.length asstr > 64 then String.sub asstr 0 64 else asstr;
 		`Assoc [
@@ -58,9 +58,9 @@ module JSONRPC = struct
 			("id", `Int req.id)
 		] |> Yojson.Safe.to_string |> send req.socket |> ignore;
 		close req.socket
-  ;;
+	;;
 
-  let reply_err req code message = 
+	let reply_err req code message =
 		Log.error "Rpc ↔" "%s %s → %d %s" req.methodn (Yojson.Basic.to_string (`List req.params)) code message;
 		`Assoc [
 			("id", `Int req.id);
@@ -71,9 +71,9 @@ module JSONRPC = struct
 			("jsonrpc", `String "2.0")
 		] |> Yojson.Safe.to_string |> send req.socket |> ignore;
 		close req.socket
-  ;;
+	;;
 
-  let parse_request socket = 
+	let parse_request socket =
 		try (
 			let data_raw = recv socket in
 			let data_split = String.split_on_char '{' data_raw in
@@ -126,7 +126,9 @@ let handle_request bc net req =
 	| "getblock", [`String b; `Bool false], _
 	| "getblock", [`String b; `Int 0], _ -> (
 		match Storage.get_block bc.storage b with
-		| None -> reply_err (-5) "Block not found"
+		| None -> 
+			(*bc.requests << Request.REQ_BLOCKS ([b], None));*)
+			reply_err (-5) "Block not found"
 		| Some (b) -> reply @@ `String (Block.serialize ~hex:true b)
 	)
 	| _ -> 
@@ -136,8 +138,8 @@ let handle_request bc net req =
 
 type t = {
 	blockchain : Chain.t;
-  network 	 : Net.t;
-  conf       : Config.rpc;
+	network 	 : Net.t;
+	conf			 : Config.rpc;
 	mutable run: bool;
 	socket		 : Unix.file_descr;
 };;
@@ -164,11 +166,11 @@ let loop a =
 	in
 	Log.info "Rpc" "Binding to port: %d" a.conf.port;
 	listen a.socket a.conf.port 8;
-  try do_listen a.socket with _ -> ()
+	try do_listen a.socket with _ -> ()
 ;;
 
 let shutdown a = 
-  Log.fatal "Rpc" "Shutdown...";
+	Log.fatal "Rpc" "Shutdown...";
 	close a.socket;
 	a.run <- false
 ;;

@@ -5,14 +5,13 @@ open Header;;
 
 type t = {
   (* Fork status *)
-	fork_hash	    :	Hash.t;
-  fork_height	  :	int64;
+	fork_hash:	Hash.t;
+  fork_height:	int64;
 
 	(* Last header status *)
-	mutable header_height	:	int64;
-  mutable header_last		: Block.Header.t;
-
-  mutable header_list   : Block.Header.t list;
+	mutable header_height:	int64;
+  mutable header_last: Block.Header.t;
+  mutable header_list: Block.Header.t list;
 };;
 
 

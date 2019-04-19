@@ -34,30 +34,30 @@ end
 type t = {
 	params	: Params.t;
 	config	: Config.t;
-	basedir	:	string;
+	basedir	: string;
 
-	storage :	Storage.t;
+	storage : Storage.t;
 	
 	(* Sync status *)
-	mutable sync_headers	:	bool;
-	mutable sync					:	bool;
-	mutable last_sync_log	: 	float;
+	mutable sync_headers : bool;
+	mutable sync : bool;
+	mutable last_sync_log : float;
 
 	(* Branches *)
-	mutable branches			: Branch.t list;
+	mutable branches : Branch.t list;
 	
 	(* Last header status *)
-	mutable header_height	:	int64;
-	mutable header_last		: 	Header.t;
+	mutable header_height : int64;
+	mutable header_last : Header.t;
 	mutable header_last_received : float;
 
 	(* Last block status *)
-	mutable block_height 	:	int64;
-	mutable block_last 		:	Block.t;
+	mutable block_height : int64;
+	mutable block_last : Block.t;
 	mutable block_last_received : float;
-	mutable blocks_requested	:	int;
+	mutable blocks_requested : int;
 	
-	mempool			:	Mempool.t;
+	mempool	: Mempool.t;
 	
 	(* Queue for incoming resources*)
 	resources		:	(Resource.t) Cqueue.t;

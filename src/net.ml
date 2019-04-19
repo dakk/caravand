@@ -39,33 +39,44 @@ let init p conf =
 	{ addrs= addrs; peers= peers; params= p; config= conf; run= true }
 ;;
 
-let send n m =
-	let rec best_peers addrs bests th = match addrs with
-	| [] -> bests
-	| a::addrs' ->
-		match Hashtbl.mem n.peers (Unix.string_of_inet_addr a) with
-		| false -> best_peers addrs' bests th
-		| true ->
-			let p = Hashtbl.find n.peers (Unix.string_of_inet_addr a) in
-			match p.status, p.last_seen with
-			| CONNECTED, ls when (Unix.time () -. th) < ls -> best_peers addrs' (p::bests) th
-			| _, _ -> best_peers addrs' bests th
-	in
-	let bests = best_peers n.addrs [] 90. in
-	let peer = match List.length bests with
-	| 0 -> None
-	| _ -> Some (List.nth bests (Random.int (List.length bests)))
-	in 
-	match peer with 
-	| Some (peer) -> Peer.send peer m; ()
-	| None -> ()
-;;
-
 
 let peer_of_addr n addr =
 	try Some (Hashtbl.find n.peers @@ Unix.string_of_inet_addr addr)
 	with | _ -> None
 ;;
+
+let best_peer n =
+		let rec best_peers addrs bests th = match addrs with
+		| [] -> bests
+		| a::addrs' ->
+			match Hashtbl.mem n.peers (Unix.string_of_inet_addr a) with
+			| false -> best_peers addrs' bests th
+			| true ->
+				let p = Hashtbl.find n.peers (Unix.string_of_inet_addr a) in
+				match p.status, p.last_seen with
+				| CONNECTED, ls when (Unix.time () -. th) < ls -> best_peers addrs' (p::bests) th
+				| _, _ -> best_peers addrs' bests th
+		in
+		let bests = best_peers n.addrs [] 90. in
+		match List.length bests with
+		| 0 -> None
+		| _ -> Some (List.nth bests (Random.int (List.length bests)))
+;;
+
+
+let send n m =
+	match best_peer n with
+	| None -> ()
+	| Some (peer) -> Peer.send peer m; ()
+;;
+
+let send_to n addr m =
+	match peer_of_addr n addr with
+	| Some (peer) -> Peer.send peer m; ()
+	| None -> ()
+;;
+
+let broadcast n msg = Hashtbl.iter (fun k p -> Peer.send p msg) n.peers;;
 
 
 let connected_weighted_peers n = int_of_float (Hashtbl.fold (fun k p c -> (match p.status with | DISCONNECTED -> c | WAITPING (x) -> c +. 0.5 | _ -> c +. 1.0)) n.peers 0.0);;
@@ -140,27 +151,17 @@ let step n bc =
 	if available_peers n <> 0 then
 		Cqueue.iter bc.requests (fun req -> match req with
 		| Chain.Request.RES_INV_TX (txh) -> 
-			let msg = Proto.INV [ (Proto.INV_TX txh) ] in
-			Hashtbl.iter (fun k p -> Peer.send p msg) n.peers
-		| Chain.Request.RES_HBLOCKS (hl, addr) -> (
-			match peer_of_addr n addr with
-			| None -> ()
-			| Some (p) -> Peer.send p @@ Proto.HEADERS (hl))
+			broadcast n @@ Proto.INV [ (Proto.INV_TX txh) ]
+		| Chain.Request.RES_HBLOCKS (hl, addr) -> 
+			send_to n addr @@ Proto.HEADERS (hl)
 		| Chain.Request.RES_BLOCK (block, addr) -> (
-			match peer_of_addr n addr with
-			| None -> ()
-			| Some (p) -> Peer.send p @@ Proto.BLOCK (block))
+			send_to n addr @@ Proto.BLOCK (block))
 		| Chain.Request.RES_TX (tx, addr) -> (
-			match peer_of_addr n addr with
-			| None -> ()
-			| Some (p) -> Peer.send p @@ Proto.TX (tx))
+			send_to n addr @@ Proto.TX (tx))
 		| Chain.Request.REQ_HBLOCKS (h, addr)	->
-			let msg = { version= Int32.of_int 1; hashes= h; stop= Hash.zero; } in 
-			send n @@ Proto.GETHEADERS (msg)
+			send n @@ Proto.GETHEADERS ({ version= Int32.of_int 1; hashes= h; stop= Hash.zero; })
 		| Chain.Request.REQ_TX (txh, Some (addr)) -> (
-			match peer_of_addr n addr with
-			| None -> ()
-			| Some (p) -> Peer.send p @@ Proto.GETDATA ([INV_TX (txh)]))
+			send_to n addr @@ Proto.GETDATA ([INV_TX (txh)]))
 		| Chain.Request.REQ_BLOCKS (hs, addr)	->
 			let rec create_invs hs acc = match hs with
 			| [] -> acc

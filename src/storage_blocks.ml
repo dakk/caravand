@@ -110,3 +110,9 @@ let get_headers block_store hashes =
 		| Some (h') -> get_headers' hs' (h'::acc)
 	in get_headers' hashes []
 ;;
+
+
+(**
+   I blocchi li teniamo separati in altro indice height -> blockraw, in modo da poterli enumerare dal 
+   piu' vecchio, eliminando appunto i vecchi
+ *)
