@@ -79,7 +79,7 @@ let send_to n addr m =
 let broadcast n msg = Hashtbl.iter (fun k p -> Peer.send p msg) n.peers;;
 
 
-let connected_weighted_peers n = int_of_float (Hashtbl.fold (fun k p c -> (match p.status with | DISCONNECTED -> c | WAITPING (x) -> c +. 0.5 | _ -> c +. 1.0)) n.peers 0.0);;
+let connected_weighted_peers n = int_of_float (Hashtbl.fold (fun k p c -> (match p.status with | DISCONNECTED -> c | WAITPING (x) -> c +. 0.6 | _ -> c +. 1.0)) n.peers 0.0);;
 let connected_peers n = Hashtbl.fold (fun k p c -> (match p.status with | DISCONNECTED -> c | _ -> c + 1)) n.peers 0;;
 let waitping_peers n = Hashtbl.fold (fun k p c -> (match p.status with | WAITPING (x) -> c + 1 | _ -> c)) n.peers 0;;
 let available_peers n = Hashtbl.fold (fun k p c -> (match p.status with | CONNECTED -> c + 1 | _ -> c)) n.peers 0;;

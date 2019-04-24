@@ -211,15 +211,14 @@ let rollback_block bc =
 	
 
 
-
 let broadcast_tx bc tx = 
 	Mempool.add bc.mempool tx;
 	bc.requests << RES_INV_TX (tx.hash);
 ;;
 
 
-let step bc = 
-	let sync_log () = if bc.last_sync_log < Unix.time () -. 30. then (
+let sync_log bc = 
+	if bc.last_sync_log < Unix.time () -. 30. then (
 		bc.last_sync_log <- Unix.time ();
 
 		if bc.sync_headers then 
@@ -240,8 +239,12 @@ let step bc =
 			Log.info "Blockchain" "Blocks not in sync: %s behind (%d blocks)" 
 				(Timediff.diffstring (Unix.time ()) bc.block_last.header.time)
 				(Int64.sub bc.header_height bc.block_height |> Int64.to_int)
-	) in
-	let check_branch_updates h = match (Branch.find_parent bc.branches h, Branch.find_fork bc.branches h) with
+	) else ()
+;;
+
+
+let check_branch_updates bc h = 
+	match (Branch.find_parent bc.branches h, Branch.find_fork bc.branches h) with
 	| (Some (br), _) -> (* Insert into a branch (if present) *)
 		Log.info "Blockchain ←" "Branch %s updated with new block: %s" br.fork_hash h.hash;
 		if verify_block_header bc.params br.header_height br.header_last h then (
@@ -262,10 +265,13 @@ let step bc =
 						bc.branches <- bc.branches @ [ branch ];
 						Log.info "Blockchain ←" "New branch created from %s to %s" banc.hash h.hash;
 						()
-				) (* else ()*)
-	in
+				) else ()
+;;
 
-	let consume_block (blazy:Block_lazy.t) = if bc.block_last.header.time = 0.0 then ( (* First block *)
+
+
+let consume_block bc (blazy:Block_lazy.t) = 
+	if bc.block_last.header.time = 0.0 then ( (* First block *)
 		let first_block_height = Int64.sub bc.header_height @@ Int64.of_int bc.config.cache_size in
 		match Storage.get_headeri bc.storage first_block_height with
 		| Some (bh) when bh.hash = blazy.header.hash -> (match Block_lazy.force blazy with
@@ -319,168 +325,172 @@ let step bc =
 			()
 		| (blazy, block, hl, None) when blazy.header.prev_block <> hl.hash -> (* New block maybe on side-branch *)
 			(*Log.debug "Blockchain" "Skip block %s %s %s" b.header.hash b.header.prev_block block.header.hash;*)
-			check_branch_updates blazy.header; ()
+			check_branch_updates bc blazy.header; ()
 		| (blazy, block, hl, _) -> ()
-	) in
-	let consume_header h = 
-		if verify_block_header bc.params bc.header_height bc.header_last h then (
-			(* Insert in the chain *)
-			bc.header_last <- h;
-			bc.header_height <- Int64.succ bc.header_height;
-			bc.header_last_received <- Unix.time ();
-			Storage.insert_header bc.storage bc.header_height bc.header_last
-		) else ( 
-			if Block.Header.check_target h then check_branch_updates h else ()
-		)
-	in
-		Cqueue.clear bc.requests;
+);;
+
+
+let consume_header bc h = 
+	if verify_block_header bc.params bc.header_height bc.header_last h then (
+		(* Insert in the chain *)
+		bc.header_last <- h;
+		bc.header_height <- Int64.succ bc.header_height;
+		bc.header_last_received <- Unix.time ();
+		Storage.insert_header bc.storage bc.header_height bc.header_last
+	) else ( 
+		if Block.Header.check_target h then check_branch_updates bc h else ()
+	)
+;;
+
+
+let step bc = 
+	Cqueue.clear bc.requests;
 		
-		(* Handle new resources *)
-		Cqueue.iter bc.resources (fun res -> match (res : Resource.t) with 
-		| REQ_BLOCK (hash, addr) -> (match Storage.get_block_lazy bc.storage hash with
-			| Some (b) -> bc.requests << Request.RES_BLOCK (b, addr)
-			| None -> ()
-		)
-		| REQ_TX (txhash, addr) ->
-			(if Mempool.has bc.mempool txhash then bc.requests << Request.RES_TX (Mempool.get bc.mempool txhash, addr))
-		| REQ_HBLOCKS (hl, stop, addr) ->
-			bc.requests << Request.RES_HBLOCKS ([], addr);
-		| RES_INV_BLOCK (bs, addr) -> 
-			(if bc.sync then bc.requests << Request.REQ_BLOCKS ([bs], Some (addr)));
-		| RES_INV_TX (txs, addr) ->
-			(if bc.sync && not (Mempool.has bc.mempool txs) then bc.requests << Request.REQ_TX (txs, Some (addr)));
-		| RES_BLOCK (bs) -> if bc.run then consume_block bs
-		| RES_TX (tx) -> 
-			Mempool.add bc.mempool tx;
-			broadcast_tx bc tx
-		| RES_HBLOCKS (hbs, addr) when List.length hbs = 0 -> ()
-		| RES_HBLOCKS (hbs, addr) -> (
-			let oldhh = Int64.to_int bc.header_height in
-			(*Log.debug "Blockchain ←" "Headers %d" (List.length hbs);*)
-			bc.requests << Request.REQ_HBLOCKS ([(List.nth hbs 0).hash], Some (addr));
-			List.iter (fun h -> consume_header h) @@ List.rev hbs;
-			if oldhh < (Int64.to_int bc.header_height) then (
-				Log.info "Blockchain ←" "%d Block Headers processed. Last is %d: %s behind" (List.length hbs) (Int64.to_int bc.header_height) 
-					(Timediff.diffstring (Unix.time ()) bc.header_last.time);
-				Storage.sync bc.storage;
-			)
-		)
-		) |> ignore;
-
-		(* Request old headers for branch verification *)
-		if bc.header_last_received < (Unix.time () -. 60. *. 60. *. 5.) then (
-			match Storage.get_headeri bc.storage (Int64.sub bc.header_height @@ Int64.of_int 64) with
-			| None -> ()
-			| Some (h) ->
-				(*Log.debug "Blockchain" "Requesting periodic ancestor headers for fork detection";*)
-				bc.requests << Request.REQ_HBLOCKS ([h.hash], None)
-				(*bc.requests << Request.REQ_HBLOCKS ([h.hash], None);
-				bc.requests << Request.REQ_HBLOCKS ([h.hash], None);
-				bc.requests << Request.REQ_HBLOCKS ([h.hash], None)*)
-		);
-
-		(* Check sync status *)
-		if bc.header_last.time < (Unix.time () -. 60. *. 60.) then (
-			bc.sync_headers <- false;
-
-			if bc.header_last_received < (Unix.time () -. 10.) then (
-				bc.requests << Request.REQ_HBLOCKS ([bc.header_last.hash], None);
-			)
-		) else (
-			if bc.header_last.time < (Unix.time () -. 60. *. 10.) ||  bc.header_last_received < (Unix.time () -. 60. *. 60.) then (
-				bc.requests << Request.REQ_HBLOCKS ([bc.header_last.hash], None)
-			);
-
-			bc.sync_headers <- true
-		);
-
-		(match bc.block_last.header.time, bc.sync_headers with
-		| 0.0, true -> (
-			bc.sync <- false;
-			match Storage.get_headeri bc.storage (Int64.sub bc.header_height (Int64.of_int bc.config.cache_size)) with
-			| Some (bh) -> bc.requests << Request.REQ_BLOCKS ([bh.hash], None)
-			| None -> ()
-		)
-		| _, true -> (
-			if bc.block_last.header.hash <> bc.header_last.hash then (
-				bc.sync <- false;
-
-				(* Ask the storage for next n blocks hashes *)
-				let rec getblockhashes h n acc = match n with
-				| 0 -> acc
-				| n ->
-					let succ = Int64.succ h in
-					let nh = Storage.get_headeri bc.storage succ in
-					match nh with
-					| None -> acc
-					| Some (bh) -> getblockhashes succ (n-1) (bh.hash::acc)
-				in 
-				if bc.block_last_received < (Unix.time () -. 5.) && bc.blocks_requested > 0 || bc.blocks_requested = 0 then (
-					let hashes = getblockhashes (bc.block_height) 128 [] in
-					bc.blocks_requested <- 128;
-					bc.requests << Request.REQ_BLOCKS (hashes, None))
-			) else (
-				bc.sync <- true
-			)
-		)
-		| _, _ -> ());
-
-		(* Check branch status *)
-		(* Check if a branch is too old, then delete it *)
-		bc.branches <- (List.filter (fun bi ->
-			if bi.Branch.header_height < (Int64.sub bc.header_height @@ Int64.of_int 12) then (
-				Log.info "Branch" "Removing branch %s because is too old" bi.header_last.hash;
-				false
-			) else true			
-		)) bc.branches;
-
-		(* Check if a branch need updates (HBLOCKS) *)
-		List.iter (fun b ->
-			if b.Branch.header_last.time < (Unix.time () -. 60. *. 10.) then (
-				bc.requests << Request.REQ_HBLOCKS ([b.Branch.header_last.hash], None)
-			)
-		) bc.branches;
-			
-		(* Check if a branch is longer than the best chain *)
-		(match Branch.best_branch bc.branches with
+	(* Handle new resources *)
+	Cqueue.iter bc.resources (fun res -> match (res : Resource.t) with 
+	| REQ_BLOCK (hash, addr) -> (match Storage.get_block_lazy bc.storage hash with
+		| Some (b) -> bc.requests << Request.RES_BLOCK (b, addr)
 		| None -> ()
-		| Some (br) when br.header_height <= bc.header_height -> ()
-		| Some (br) when br.header_height > bc.header_height ->
-			let rec rollback rolled =
-				rollback_block bc;
-				match bc.header_last.hash with
-				| l when l = br.fork_hash -> rolled
-				| l -> rollback @@ (bc.header_last) :: rolled 
-			in
-			Log.info "Branch" "Found that branch %s is the main branch, rollback" bc.header_last.hash;
-			let rolled_back = rollback [] in
+	)
+	| REQ_TX (txhash, addr) ->
+		(if Mempool.has bc.mempool txhash then bc.requests << Request.RES_TX (Mempool.get bc.mempool txhash, addr))
+	| REQ_HBLOCKS (hl, stop, addr) ->
+		bc.requests << Request.RES_HBLOCKS ([], addr);
+	| RES_INV_BLOCK (bs, addr) -> 
+		(if bc.sync then bc.requests << Request.REQ_BLOCKS ([bs], Some (addr)));
+	| RES_INV_TX (txs, addr) ->
+		(if bc.sync && not (Mempool.has bc.mempool txs) then bc.requests << Request.REQ_TX (txs, Some (addr)));
+	| RES_BLOCK (bs) -> if bc.run then consume_block bc bs
+	| RES_TX (tx) -> 
+		Mempool.add bc.mempool tx;
+		broadcast_tx bc tx
+	| RES_HBLOCKS (hbs, addr) when List.length hbs = 0 -> ()
+	| RES_HBLOCKS (hbs, addr) -> (
+		let oldhh = Int64.to_int bc.header_height in
+		(*Log.debug "Blockchain ←" "Headers %d" (List.length hbs);*)
+		bc.requests << Request.REQ_HBLOCKS ([(List.nth hbs 0).hash], Some (addr));
+		List.iter (fun h -> consume_header bc h) @@ List.rev hbs;
+		if oldhh < (Int64.to_int bc.header_height) then (
+			Log.info "Blockchain ←" "%d Block Headers processed. Last is %d: %s behind" (List.length hbs) (Int64.to_int bc.header_height) 
+				(Timediff.diffstring (Unix.time ()) bc.header_last.time);
+			Storage.sync bc.storage;
+		)
+	));
 
-			(* Push branch headers to the main branch *)
-			List.iter (fun h -> consume_header h) br.header_list;
+	(* Request old headers for branch verification *)
+	if bc.header_last_received < (Unix.time () -. 60. *. 60. *. 5.) then (
+		match Storage.get_headeri bc.storage (Int64.sub bc.header_height @@ Int64.of_int 64) with
+		| None -> ()
+		| Some (h) ->
+			(*Log.debug "Blockchain" "Requesting periodic ancestor headers for fork detection";*)
+			bc.requests << Request.REQ_HBLOCKS ([h.hash], None)
+			(*bc.requests << Request.REQ_HBLOCKS ([h.hash], None);
+			bc.requests << Request.REQ_HBLOCKS ([h.hash], None);
+			bc.requests << Request.REQ_HBLOCKS ([h.hash], None)*)
+	);
 
-			(* Remove branch *)
-			bc.branches <- (List.filter (fun bi -> br.fork_hash <> bi.Branch.fork_hash) bc.branches);
+	(* Check sync status *)
+	if bc.header_last.time < (Unix.time () -. 60. *. 60.) then (
+		bc.sync_headers <- false;
 
-			(* Move old blocks (if any) to new branch *)
-			if List.length rolled_back > 0 then (
-				let branch = Branch.create (List.hd rolled_back).hash bc.header_height @@ List.hd rolled_back in
-				List.iter (fun h -> Branch.push branch h |> ignore) @@ List.tl rolled_back;
-				bc.branches <- bc.branches @ [ branch ];
-			);
-			()
-		| _ -> ()
+		if bc.header_last_received < (Unix.time () -. 10.) then (
+			bc.requests << Request.REQ_HBLOCKS ([bc.header_last.hash], None);
+		)
+	) else (
+		if bc.header_last.time < (Unix.time () -. 60. *. 10.) ||  bc.header_last_received < (Unix.time () -. 60. *. 60.) then (
+			bc.requests << Request.REQ_HBLOCKS ([bc.header_last.hash], None)
 		);
-		(*Storage.update_branches bc.storage bc.branches;*)
 
-		(*Log.debug "Blockchain" "Last block header is %d : %s" (Int64.to_int bc.header_height) bc.header_last.hash;
-		Log.debug "Blockchain" "Last block is %d : %s" (Int64.to_int bc.block_height) bc.block_last.header.hash;
-		Log.debug "Blockchain" "There are %d active side-branches" @@ List.length bc.branches;
-		List.iter (fun b ->
-			Log.debug "Branch" "Last block of branch %s (%d blocks) header is %d (diff: %d)" (b.Branch.header_last.hash) (List.length b.Branch.header_list) (Int64.to_int b.header_height)
-				(Int64.to_int @@ Int64.sub bc.header_height b.Branch.header_height); 
-		) bc.branches;
-		Mempool.print_stats bc.mempool;	*)
-		sync_log ()
+		bc.sync_headers <- true
+	);
+
+	(match bc.block_last.header.time, bc.sync_headers with
+	| 0.0, true -> (
+		bc.sync <- false;
+		match Storage.get_headeri bc.storage (Int64.sub bc.header_height (Int64.of_int bc.config.cache_size)) with
+		| Some (bh) -> bc.requests << Request.REQ_BLOCKS ([bh.hash], None)
+		| None -> ()
+	)
+	| _, true -> (
+		if bc.block_last.header.hash <> bc.header_last.hash then (
+			bc.sync <- false;
+
+			(* Ask the storage for next n blocks hashes *)
+			let rec getblockhashes h n acc = match n with
+			| 0 -> acc
+			| n ->
+				let succ = Int64.succ h in
+				let nh = Storage.get_headeri bc.storage succ in
+				match nh with
+				| None -> acc
+				| Some (bh) -> getblockhashes succ (n-1) (bh.hash::acc)
+			in 
+			if bc.block_last_received < (Unix.time () -. 5.) && bc.blocks_requested > 0 || bc.blocks_requested = 0 then (
+				let hashes = getblockhashes (bc.block_height) 128 [] in
+				bc.blocks_requested <- 128;
+				bc.requests << Request.REQ_BLOCKS (hashes, None))
+		) else (
+			bc.sync <- true
+		)
+	)
+	| _, _ -> ());
+
+	(* Check branch status *)
+	(* Check if a branch is too old, then delete it *)
+	bc.branches <- (List.filter (fun bi ->
+		if bi.Branch.header_height < (Int64.sub bc.header_height @@ Int64.of_int 12) then (
+			Log.info "Branch" "Removing branch %s because is too old" bi.header_last.hash;
+			false
+		) else true			
+	)) bc.branches;
+
+	(* Check if a branch need updates (HBLOCKS) *)
+	List.iter (fun b ->
+		if b.Branch.header_last.time < (Unix.time () -. 60. *. 10.) then (
+			bc.requests << Request.REQ_HBLOCKS ([b.Branch.header_last.hash], None)
+		)
+	) bc.branches;
+			
+	(* Check if a branch is longer than the best chain *)
+	(match Branch.best_branch bc.branches with
+	| None -> ()
+	| Some (br) when br.header_height <= bc.header_height -> ()
+	| Some (br) when br.header_height > bc.header_height ->
+		let rec rollback rolled =
+			rollback_block bc;
+			match bc.header_last.hash with
+			| l when l = br.fork_hash -> rolled
+			| l -> rollback @@ (bc.header_last) :: rolled 
+		in
+		Log.info "Branch" "Found that branch %s is the main branch, rollback" bc.header_last.hash;
+		let rolled_back = rollback [] in
+
+		(* Push branch headers to the main branch *)
+		List.iter (fun h -> consume_header bc h) br.header_list;
+
+		(* Remove branch *)
+		bc.branches <- (List.filter (fun bi -> br.fork_hash <> bi.Branch.fork_hash) bc.branches);
+
+		(* Move old blocks (if any) to new branch *)
+		if List.length rolled_back > 0 then (
+			let branch = Branch.create (List.hd rolled_back).hash bc.header_height @@ List.hd rolled_back in
+			List.iter (fun h -> Branch.push branch h |> ignore) @@ List.tl rolled_back;
+			bc.branches <- bc.branches @ [ branch ];
+		);
+		()
+	| _ -> ()
+	);
+	(*Storage.update_branches bc.storage bc.branches;*)
+
+	(*Log.debug "Blockchain" "Last block header is %d : %s" (Int64.to_int bc.header_height) bc.header_last.hash;
+	Log.debug "Blockchain" "Last block is %d : %s" (Int64.to_int bc.block_height) bc.block_last.header.hash;
+	Log.debug "Blockchain" "There are %d active side-branches" @@ List.length bc.branches;
+	List.iter (fun b ->
+		Log.debug "Branch" "Last block of branch %s (%d blocks) header is %d (diff: %d)" (b.Branch.header_last.hash) (List.length b.Branch.header_list) (Int64.to_int b.header_height)
+			(Int64.to_int @@ Int64.sub bc.header_height b.Branch.header_height); 
+	) bc.branches;
+	Mempool.print_stats bc.mempool;	*)
+	sync_log bc
 ;;
 
 

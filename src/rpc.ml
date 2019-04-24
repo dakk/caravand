@@ -105,9 +105,11 @@ let handle_request bc net req =
 			("feerate", `Float 0.00013008)
 		]
 	)
-	(*| "gettxout", [`String txid; `Int n], _ -> (
-		notavailable ()
-	)*)
+	| "gettxout", [`String txid; `Int n], _ -> (
+		match Storage.get_txout bc.storage txid n with 
+		| None -> reply_err (-5) "Txout not found"
+		| Some (txo) -> reply @@ `String (Tx.Out.serialize txo.txout)
+	)
 	| "sendrawtransaction", [`String hex], _ -> (
 		match Tx.parse ~hex:true hex with
 		| _, Some (tx) ->
