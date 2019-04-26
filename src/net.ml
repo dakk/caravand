@@ -98,9 +98,9 @@ let step n bc =
 	Thread.delay 1.;
 
 	(* Print network stats *)
-	let sent = sent n in
+	(*let sent = sent n in
 	let received = received n in
-	(*Log.debug "Network" "Stats: %s sent, %s received, %d connected peers (%d waitping)" (byten_to_string sent) 
+	Log.debug "Network" "Stats: %s sent, %s received, %d connected peers (%d waitping)" (byten_to_string sent) 
 		(byten_to_string received) (connected_peers n) (waitping_peers n);*)
 
 	(* Check for connection timeout and minimum number of peer*)		
@@ -172,15 +172,7 @@ let step n bc =
 
 let loop n bc = 
 	Log.info "Network" "Starting mainloop.";
-	
-	Hashtbl.iter (fun k peer -> Thread.create (Peer.start peer) bc |> ignore) n.peers;
-					
-	while n.run do (
-		step n bc
-	)	done;
-
-	(* Shutdown *)
-	Hashtbl.iter (fun k peer -> 
-		Peer.disconnect peer
-	) n.peers;
+	Hashtbl.iter (fun k peer -> Thread.create (Peer.start peer) bc |> ignore) n.peers;				
+	while n.run do (step n bc)	done;
+	Hashtbl.iter (fun k peer -> Peer.disconnect peer) n.peers;
 ;;

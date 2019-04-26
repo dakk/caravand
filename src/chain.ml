@@ -375,7 +375,7 @@ let step bc =
 				(Timediff.diffstring (Unix.time ()) bc.header_last.time);
 			Storage.sync bc.storage;
 		)
-	));
+	)) |> ignore;
 
 	(* Request old headers for branch verification *)
 	if bc.header_last_received < (Unix.time () -. 60. *. 60. *. 5.) then (
